@@ -395,7 +395,8 @@ its source where practical, store only necessary indexed copies,
 preserve source ownership and access labels, and query live systems for
 time-sensitive facts. Use PostgreSQL as the initial shared application
 database; add MongoDB only when a demonstrated requirement justifies the
-operational complexity.
+operational complexity. N.B for now we will be using JSON as part of our database , so design it in such a way that in
+the later stage we will be able to configure databases
 
 ## 8. Request Orchestration and Workflow Routing
 
