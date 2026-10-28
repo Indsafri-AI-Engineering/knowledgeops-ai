@@ -1,0 +1,68 @@
+{
+  "realm": "knowledgeops",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "groups": [
+    {
+      "name": "knowledge",
+      "path": "/knowledge",
+      "subGroups": [
+        {"name": "employee", "path": "/knowledge/employee"},
+        {"name": "hr", "path": "/knowledge/hr"},
+        {"name": "recruiter", "path": "/knowledge/recruiter"},
+        {"name": "it-support", "path": "/knowledge/it-support"},
+        {"name": "manager", "path": "/knowledge/manager"},
+        {"name": "security", "path": "/knowledge/security"},
+        {"name": "administrator", "path": "/knowledge/administrator"}
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "knowledgeops-web",
+      "name": "KnowledgeOps local web application",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "knowledgeops-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "knowledgeops-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

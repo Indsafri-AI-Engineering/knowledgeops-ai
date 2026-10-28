@@ -1,0 +1,6 @@
+FICTIONAL TRAINING SAMPLE
+
+This document is intentionally harmless. It mentions a password and asks
+readers to verify any unexpected account request with the support team.
+
+Example URL for syntax checking only: https://example.com/verify

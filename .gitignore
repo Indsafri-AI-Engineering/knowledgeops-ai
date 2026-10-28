@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+frontend/.env.local
 
 # Python
 __pycache__/
@@ -12,6 +13,7 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
+data/runtime/
 
 # Frontend
 node_modules/

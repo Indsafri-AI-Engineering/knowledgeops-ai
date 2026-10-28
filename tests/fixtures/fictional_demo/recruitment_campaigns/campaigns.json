@@ -1,0 +1,32 @@
+{
+  "campaigns": [
+    {
+      "campaign_id": "backend-engineer",
+      "title": "Fictional Backend Engineer",
+      "minimum_years_experience": 3,
+      "required_skills": ["Python", "REST APIs", "PostgreSQL"],
+      "candidates": [
+        {
+          "document_id": "demo-cv-001",
+          "profile_id": "CAND-001",
+          "years_experience": 4,
+          "skills": ["Python", "REST APIs", "PostgreSQL", "automated testing"],
+          "evidence": "Four years in backend application development; skills include Python, REST APIs, and PostgreSQL."
+        },
+        {
+          "document_id": "demo-cv-002",
+          "profile_id": "CAND-002",
+          "years_experience": 3,
+          "skills": ["incident triage", "endpoint support", "knowledge-base writing"],
+          "evidence": "Three years in IT service operations; no listed backend engineering skills."
+        }
+      ]
+    }
+  ],
+  "success_fee": {
+    "rate_percent": "12",
+    "currency": "credits",
+    "basis": "candidate first-year base salary",
+    "agreement_document_id": "demo-recruitment-agreement"
+  }
+}
