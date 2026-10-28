@@ -24,6 +24,9 @@ The short Windows/PowerShell setup is:
    python -m pip install -e ".[dev]"
    ```
 
+   For runtime dependencies without the development test tools, use
+   `python -m pip install -r requirements.txt`.
+
 2. Create the local environment file from the example if it does not
    already exist, then edit `.env` as needed:
 
@@ -114,6 +117,17 @@ commands from the repository root:
 python -m pytest -q
 ```
 
+The Phase 9 synthetic smoke report can be run with:
+
+```powershell
+python -m backend.app.evaluation.run_demo_evaluation
+```
+
+It reports retrieval MRR@3 and expected-source hit rate, routing accuracy,
+restricted-scope denials/leaks, and synthetic threat-detection metrics. These
+are repeatable fixture results, not production quality claims; answer
+faithfulness/relevancy and latency/error evaluation remain future work.
+
 The `.env.example` file documents configuration names and can be copied to
 `.env`. Mock connector routes are enabled only by isolated automated tests.
 Authenticated users mapped to `threat_scans:scan` can use the local
@@ -175,23 +189,27 @@ allowlisted capabilities.
 
 The running application uses OIDC authentication, permission-filtered
 document retrieval, local JSON persistence for document metadata and extracted
-chunks, optional embedded Qdrant vectors, source citations, conversation
-history, an authenticated system-status panel, and an optional live Jira Cloud
-workspace. The Jira integration uses a backend-only service-account token;
-search requires `jira:read`, and issue changes require `jira:approve` plus an
-explicit confirmation. Knowledge, conversation, audit, and other application
+chunks, optional embedded Qdrant vectors, source citations, a stateless chat
+interface, an authenticated system-status panel, and an optional live Jira
+Cloud workspace. Chat requests and answers are not persisted or carried into
+later requests. The Jira integration uses a backend-only service-account
+token; search requires `jira:read`, and issue changes require `jira:approve`
+plus an explicit confirmation. Knowledge, audit, and other application
 records remain local JSON for now. Users with
 `knowledge:manage` can upload PDF, DOCX, TXT, Markdown, HTML, XLSX, and PPTX
-documents. The active knowledge corpus is empty until authorized documents
-are uploaded. Fictional fixtures
-and mock connector implementations are confined to tests and are not exposed
-by the application; Jira Cloud is a separate real integration. Current
+documents. The active corpus includes clearly fictional seed documents and
+any authorized uploaded documents. Fictional fixtures and mock connector
+implementations are not exposed by the application; Jira Cloud is a separate
+real integration. Current
 contracts are documented in [API.md](docs/API.md)
 and system boundaries in [ARCHITECTURE.md](docs/ARCHITECTURE.md). The HLD
 below is retained as future-scope reference; its fictional examples and older
 prototype assumptions do not describe active runtime behavior. Production
 identity, source, provider, retention, and deployment decisions remain
 subject to approval.
+
+The optional Jira issue-created notification to n8n is configured separately;
+see [N8N_SETUP.md](docs/N8N_SETUP.md).
 
 ## 1. Project Overview
 
@@ -465,7 +483,7 @@ flowchart TD
     LLM --> API
 
     ORCH --> CACHE[Permission-Aware FAQ / Answer Cache]
-    API --> AUDIT[(Audit Logs + Conversation Metadata)]
+    API --> AUDIT[(Audit Logs: Routing and Source Counts)]
     CONNECT --> APPROVAL[Approval Gate for Sensitive Writes]
     APPROVAL --> JIRA
     APPROVAL --> N8N[n8n Approved Notifications]
@@ -540,8 +558,7 @@ flowchart TD
                           (RRF)                   result rankings
 
   Relational data         PostgreSQL              Users, permissions,
-                                                  metadata,
-                                                  conversations, actions,
+                                                  metadata, actions,
                                                   audit events
 
   Optional flexible store MongoDB only if a clear Flexible records; not a
@@ -842,7 +859,9 @@ use Knowledge AI to retrieve security policies and explain its findings.
   metadata. Delivery success/failure appears on the alert. An analyst can
   acknowledge and explicitly confirm a response-workflow dispatch. The app
   does not accept inbound n8n commands or automatically remediate or create
-  Jira issues.
+  Jira issues. A separate optional Jira webhook can notify after a confirmed
+  issue is created; it sends only the event, issue key, project key, and Jira
+  URL.
 
 To test document blocking, ingest a harmless synthetic TXT containing
 `api_key = fictionalSecretValue983721`; the upload should return HTTP 422,
@@ -860,6 +879,9 @@ Set `SECURITY_ALERTS_PATH` to an ignored runtime JSON path. Tune
 Set `N8N_ALERT_WEBHOOK_URL` and optionally `N8N_ALERT_WEBHOOK_TOKEN` to enable
 notifications; use HTTPS except for localhost development. Only alert
 metadata and rule IDs are sent to n8n.
+For Jira issue-created events, configure `N8N_JIRA_WEBHOOK_URL` and optionally
+`N8N_JIRA_WEBHOOK_TOKEN`. Jira creation remains successful if the subsequent
+notification fails; the API response reports the notification outcome.
 
 These are deterministic indicators, not antivirus, malware detonation,
 external reputation, or a full DLP classifier. The event window is
@@ -943,9 +965,10 @@ after an authorised threat finding is escalated.
 
 ## 14. Data Model (Initial)
 
-Use relational tables for identity, source metadata, conversations,
-permissions, actions, and auditability. Keep original data in source
-systems where practical.
+Use relational tables for identity, source metadata, permissions, actions,
+and auditability. Keep original data in source systems where practical. The
+prototype does not persist individual chat sessions or messages; every chat
+request is independent.
 
   ------------------------------------------------------------------------
   Entity                  Purpose                 Example fields
@@ -971,14 +994,6 @@ systems where practical.
                           segments                `document_id`, `text`,
                                                   `embedding_ref`,
                                                   `section`, `page`
-
-  `conversations`         Chat sessions           `conversation_id`,
-                                                  `user_id`, `created_at`
-
-  `messages`              Permitted conversation  `message_id`,
-                          history                 `conversation_id`,
-                                                  `role`, `content_ref`,
-                                                  `created_at`
 
   `faq_items`             Curated common          `faq_id`, `question`,
                           questions               `approved_answer_ref`,
@@ -1237,9 +1252,8 @@ knowledgeops-ai/
   3                       Hybrid retrieval and    Vector-only comparison
                           metadata/ACL filtering  and permission tests
 
-  4                       LangChain routing,      Multiple intents route
-                          conversation state, FAQ to the right workflow
-                          suggestions             
+  4                       LangChain routing, FAQ  Multiple intents route
+                          suggestions              to the right workflow
 
   5                       Authentication, RBAC,   Role and
                           audit logs, secure      source-isolation tests
@@ -1308,8 +1322,8 @@ The prototype is ready for demonstration when:
     Jira, and threat-detection intents.
 -   Frequently asked questions can be suggested without bypassing
     current retrieval or access checks.
--   The system does not leak restricted chunks through search, chat
-    history, cache, or citations.
+-   The system does not leak restricted chunks through search, response
+    citations, or caches; chat turns are not persisted.
 -   HR, CV, and success-fee examples use fictional data unless approved
     access exists.
 -   Jira writes require approval and are audited.

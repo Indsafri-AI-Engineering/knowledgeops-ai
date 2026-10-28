@@ -15,6 +15,7 @@ from backend.app.integrations.jira_cloud import (
     JiraConfigurationError,
     JiraRequestError,
 )
+from backend.app.integrations.n8n import N8nJiraNotifier
 from backend.app.storage.audit import AuditLog
 
 router = APIRouter(prefix="/jira", tags=["Jira Cloud"])
@@ -68,6 +69,7 @@ class JiraCreatedIssue(BaseModel):
     id: str
     key: str
     url: str
+    notification_status: Literal["sent", "not_configured", "failed"]
 
 
 class JiraUpdateIssueRequest(BaseModel):
@@ -268,10 +270,28 @@ def create_issue(
         metadata={"project_key": payload.project_key},
     )
     base_url = os.getenv("JIRA_BASE_URL", "").strip().rstrip("/")
+    issue_url = f"{base_url}/browse/{result['key']}"
+    notification_status = N8nJiraNotifier().notify_issue_created(
+        issue_key=result["key"],
+        project_key=payload.project_key,
+        issue_url=issue_url,
+    )
+    _record(
+        request,
+        user,
+        action="jira.issue.created_notification",
+        outcome="success" if notification_status == "sent" else "failure",
+        metadata={
+            "issue_key": result["key"],
+            "project_key": payload.project_key,
+            "notification_status": notification_status,
+        },
+    )
     return JiraCreatedIssue(
         id=result["id"],
         key=result["key"],
-        url=f"{base_url}/browse/{result['key']}",
+        url=issue_url,
+        notification_status=notification_status,
     )
 
 

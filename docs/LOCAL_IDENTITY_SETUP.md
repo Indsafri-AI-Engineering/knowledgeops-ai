@@ -79,8 +79,9 @@ npm run dev
 ```
 
 The SPA uses the OIDC authorization-code flow with PKCE and stores OIDC state
-in browser session storage. Register `http://localhost:5173/*` as the local
-redirect URI for `knowledgeops-web`. The API uses bearer access tokens.
+in browser session storage. The imported `knowledgeops-web` client allows the
+common local Vite ports `http://localhost:5173/*` and
+`http://localhost:5174/*`. The API uses bearer access tokens.
 
 ## Sign-in troubleshooting
 
@@ -93,10 +94,14 @@ If sign-in returns HTTP 400, open browser Developer Tools → Network and inspec
 the failing request's URL and response body. A 400 from Keycloak's
 `/protocol/openid-connect/token` endpoint means the authorization-code exchange
 was rejected; check that the browser uses the same host consistently
-(`localhost` versus `127.0.0.1`), the client ID is `knowledgeops-web`, the
-redirect URI matches the registered `http://localhost:5173/` callback, and
-the browser session storage still contains the OIDC flow state. Do not share
-authorization codes, state values, access tokens, or request headers.
+(`localhost` versus `127.0.0.1`), the client ID is `knowledgeops-web`, and
+the exact callback (for example `http://localhost:5174/`) is allowed under
+**Valid Redirect URIs**. If the realm was imported before adding port 5174,
+update the existing client in Keycloak Admin Console → `knowledgeops` realm
+→ Clients → `knowledgeops-web` → Settings; editing the import JSON alone
+does not update an already imported client. Also confirm the browser session
+storage still contains the OIDC flow state. Do not share authorization
+codes, state values, access tokens, or request headers.
 
 If `GET /api/v1/me` returns 401, verify the browser's Authorization header is
 present without copying or sharing its bearer-token value. An API request ID

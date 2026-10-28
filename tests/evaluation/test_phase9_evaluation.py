@@ -2,7 +2,9 @@ import pytest
 
 from backend.app.evaluation.metrics import binary_classification_metrics
 from backend.app.evaluation.run_demo_evaluation import (
+    evaluate_restricted_access,
     evaluate_retrieval,
+    evaluate_routing,
 )
 from backend.app.threat_detection.evaluation import evaluate_threat_cases
 
@@ -40,3 +42,18 @@ def test_fictional_threat_and_retrieval_smoke_evaluation() -> None:
     assert threat_metrics.false_negatives == 0
     assert retrieval_metrics["vector"]["cases"] == 4
     assert retrieval_metrics["hybrid"]["cases"] == 4
+    assert retrieval_metrics["hybrid"]["expected_source_hit_rate_at_3"] >= 0
+
+
+def test_fictional_routing_evaluation_reports_measured_accuracy() -> None:
+    metrics = evaluate_routing()
+
+    assert metrics["cases"] == 8
+    assert metrics["correct"] == metrics["cases"]
+    assert metrics["accuracy"] == 1.0
+
+
+def test_employee_restricted_access_evaluation_has_no_leaks() -> None:
+    metrics = evaluate_restricted_access()
+
+    assert metrics == {"checks": 3, "denials": 3, "leaks": 0}

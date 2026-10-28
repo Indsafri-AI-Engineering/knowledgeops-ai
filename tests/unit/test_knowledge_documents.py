@@ -192,12 +192,12 @@ def test_pdf_ingestion_persists_chunks_and_makes_them_retrievable(
     assert "blue alignment key" in reopened_store.list_chunks()[0].text
 
     get_knowledge_index.cache_clear()
-    with TestClient(app) as employee_client:
-        employee_client.post(
+    with TestClient(app) as it_client:
+        it_client.post(
             "/api/v1/auth/demo-login",
-            json={"user_id": "demo-employee"},
+            json={"user_id": "demo-it"},
         )
-        chat_response = employee_client.post(
+        chat_response = it_client.post(
             "/api/v1/chat",
             json={"question": "What is the quantum widget blue alignment key?"},
         )

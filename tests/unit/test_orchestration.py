@@ -1,21 +1,15 @@
-from uuid import uuid4
-
 import pytest
 
 from backend.app.core.demo_auth import DEMO_USERS
 from backend.app.orchestration.routing import route_question
 from backend.app.orchestration.service import orchestrate_request
-from backend.app.storage.conversations import (
-    ConversationStore,
-    ConversationTurn,
-    MAX_CONVERSATION_TURNS,
-)
 
 
 @pytest.mark.parametrize(
     ("question", "expected_intent", "expected_workflow"),
     [
         ("Who approves my annual leave request?", "hr.policy", "knowledge"),
+        ("What steps are included in the employee onboarding checklist?", "hr.policy", "knowledge"),
         ("Help troubleshoot a Salesforce login error", "it.troubleshooting", "knowledge"),
         ("What success fee applies to the recruitment agreement?", "recruitment.knowledge", "knowledge"),
         ("Which Jira issues are assigned to the AI team?", "jira.search", "planned"),
@@ -37,6 +31,7 @@ def test_langchain_router_assigns_workflow(
     ("question", "category", "component"),
     [
         ("Who approves my annual leave request?", "knowledge", "hr_knowledge"),
+        ("What steps are included in the employee onboarding checklist?", "knowledge", "hr_knowledge"),
         ("Help troubleshoot a Salesforce login error", "knowledge", "it_knowledge"),
         ("What success fee applies?", "knowledge", "recruitment"),
         ("Which Jira issues are open?", "workflow", "jira"),
@@ -85,27 +80,55 @@ def test_unsupported_action_does_not_fall_through_to_retrieval(
     assert "cannot perform that action" in result.answer.lower()
 
 
-def test_json_conversation_store_limits_history_and_enforces_owner(tmp_path) -> None:
-    store = ConversationStore(tmp_path / "conversations.json")
-    conversation_id = uuid4()
-    store.create(conversation_id, "demo-employee")
-    for number in range(MAX_CONVERSATION_TURNS + 2):
-        saved = store.append(
-            conversation_id,
-            "demo-employee",
-            ConversationTurn(
-                question=f"question {number}",
-                answer=f"answer {number}",
-                intent="knowledge.question",
-            ),
-        )
-        assert saved is not None
+@pytest.mark.parametrize(
+    ("question", "expected_scope", "denied_department"),
+    [
+        (
+            "What steps are included in the employee onboarding checklist?",
+            "hr",
+            "hr",
+        ),
+        (
+            "What success fee applies under the recruitment agreement?",
+            "recruitment",
+            "recruitment",
+        ),
+        (
+            "What are the incident-triage steps in the IT support runbook?",
+            "it",
+            "it",
+        ),
+    ],
+)
+def test_employee_restricted_questions_are_denied_before_retrieval(
+    monkeypatch,
+    question: str,
+    expected_scope: str,
+    denied_department: str,
+) -> None:
+    class RetrievalMustNotRun:
+        @property
+        def chunks(self):
+            return []
 
-    loaded = ConversationStore(tmp_path / "conversations.json").get(
-        conversation_id,
-        "demo-employee",
+        def search(self, *args, **kwargs):
+            raise AssertionError("Restricted HR retrieval must not run.")
+
+    monkeypatch.setenv("ENABLE_TEST_FIXTURES", "false")
+    decision = route_question(question)
+    result = orchestrate_request(
+        question,
+        decision,
+        DEMO_USERS["demo-employee"],
+        None,
+        RetrievalMustNotRun(),
+        "hybrid",
     )
-    assert loaded is not None
-    assert len(loaded.turns) == MAX_CONVERSATION_TURNS
-    assert loaded.turns[0].question == "question 2"
-    assert store.get(conversation_id, "demo-recruiter") is None
+
+    assert decision.required_scope == expected_scope
+    assert result.audit_outcome == "denied"
+    assert result.sources == []
+    assert result.needs_clarification is True
+    assert "not authorized" in result.answer.lower()
+    assert denied_department in result.answer.lower()
+    assert question.split()[0].lower() not in result.answer.lower()

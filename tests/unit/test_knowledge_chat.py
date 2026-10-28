@@ -8,11 +8,7 @@ from backend.app.knowledge.ingestion import load_knowledge_chunks
 
 
 @pytest.fixture(autouse=True)
-def isolate_conversations(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv(
-        "CONVERSATION_STORE_PATH",
-        str(tmp_path / "conversations.json"),
-    )
+def isolate_chat_audit(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
     monkeypatch.setenv("JIRA_ACTIONS_PATH", str(tmp_path / "jira_actions.json"))
     monkeypatch.setenv(
@@ -146,7 +142,7 @@ def test_chat_returns_grounded_answer_and_source(monkeypatch) -> None:
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-hr"})
 
     response = client.post(
         "/api/v1/chat",
@@ -243,7 +239,7 @@ def test_chat_uses_local_model_for_retrieved_evidence(monkeypatch) -> None:
         lambda: FakeChatOllama(model="llama3.2:3b"),
     )
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-hr"})
 
     response = client.post(
         "/api/v1/chat",
@@ -278,6 +274,27 @@ def test_chat_filters_recruitment_documents_before_retrieval(monkeypatch) -> Non
     assert "9,600" not in body["answer"]
 
 
+def test_employee_chat_denies_hr_onboarding_without_exposing_sources(monkeypatch) -> None:
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    get_knowledge_index.cache_clear()
+    client = TestClient(app)
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+
+    response = client.post(
+        "/api/v1/chat",
+        json={"question": "What steps are included in the employee onboarding checklist?"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sources"] == []
+    assert body["needs_clarification"] is True
+    assert "not authorized" in body["answer"].lower()
+    assert "it support runbook" not in body["answer"].lower()
+    assert "candidate" not in body["answer"].lower()
+
+
 def test_salesforce_guided_login_help_uses_fictional_source_and_langchain(
     monkeypatch,
     tmp_path,
@@ -287,7 +304,7 @@ def test_salesforce_guided_login_help_uses_fictional_source_and_langchain(
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
 
     response = client.post(
         "/api/v1/connectors/it/salesforce/login-guide",
@@ -330,7 +347,7 @@ def test_salesforce_guided_login_help_validates_symptom(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
 
     response = client.post(
         "/api/v1/connectors/it/salesforce/login-guide",
@@ -403,50 +420,80 @@ def test_chat_accepts_vector_and_hybrid_modes(monkeypatch) -> None:
     assert invalid_mode.status_code == 422
 
 
-def test_chat_persists_and_returns_owned_conversation(monkeypatch) -> None:
+def test_chat_is_stateless_and_does_not_persist_prior_questions_or_answers(
+    monkeypatch,
+    tmp_path,
+) -> None:
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    audit_path = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(audit_path))
+    monkeypatch.setenv(
+        "CONVERSATION_STORE_PATH",
+        str(tmp_path / "conversations.json"),
+    )
+    captured_questions: list[str] = []
+
+    def fake_orchestrate(question, route, user, request, index, retrieval_mode):
+        from backend.app.orchestration.service import OrchestrationResult
+
+        captured_questions.append(question)
+        return OrchestrationResult(
+            answer=f"Independent answer for: {question}",
+            workflow_status="available",
+            sources=[],
+            needs_clarification=False,
+        )
+
+    monkeypatch.setattr(
+        "backend.app.api.v1.chat.orchestrate_request",
+        fake_orchestrate,
+    )
     get_knowledge_index.cache_clear()
-    employee_client = TestClient(app)
-    employee_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
-    )
-    first_response = employee_client.post(
-        "/api/v1/chat",
-        json={"question": "How many annual leave days do employees receive?"},
-    )
-    conversation_id = first_response.json()["conversation_id"]
+    with TestClient(app) as client:
+        client.post(
+            "/api/v1/auth/demo-login",
+            json={"user_id": "demo-employee"},
+        )
+        first_question = "How many annual leave days do employees receive?"
+        second_question = (
+            "What steps should a recruiter follow when screening candidates?"
+        )
+        first_response = client.post(
+            "/api/v1/chat",
+            json={"question": first_question},
+        )
+        second_response = client.post(
+            "/api/v1/chat",
+            json={"question": second_question},
+        )
+        old_history_endpoint = client.get(
+            "/api/v1/conversations/00000000-0000-0000-0000-000000000001"
+        )
+        conversation_id_request = client.post(
+            "/api/v1/chat",
+            json={
+                "question": "This field is not accepted.",
+                "conversation_id": "00000000-0000-0000-0000-000000000001",
+            },
+        )
 
-    second_response = employee_client.post(
-        "/api/v1/chat",
-        json={
-            "question": "Who approves it?",
-            "conversation_id": conversation_id,
-        },
-    )
+    assert first_response.status_code == 200
     assert second_response.status_code == 200
-    assert len(second_response.json()["history"]) == 2
-    assert second_response.json()["intent"] == "hr.policy"
-    assert "team manager" in second_response.json()["answer"]
-
-    recruiter_client = TestClient(app)
-    recruiter_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-recruiter"},
+    assert captured_questions == [first_question, second_question]
+    assert second_response.json()["question"] == second_question
+    assert second_response.json()["answer"] == (
+        f"Independent answer for: {second_question}"
     )
-    assert (
-        recruiter_client.get(
-            f"/api/v1/conversations/{conversation_id}"
-        ).status_code
-        == 404
-    )
-    assert (
-        employee_client.get(
-            f"/api/v1/conversations/{conversation_id}"
-        ).json()["turns"][0]["intent"]
-        == "hr.policy"
-    )
+    assert "history" not in second_response.json()
+    assert "conversation_id" not in second_response.json()
+    assert old_history_endpoint.status_code == 404
+    assert conversation_id_request.status_code == 422
+    assert not (tmp_path / "conversations.json").exists()
+    audit_contents = audit_path.read_text(encoding="utf-8")
+    assert first_question not in audit_contents
+    assert second_question not in audit_contents
+    assert "Independent answer for:" not in audit_contents
 
 
 def test_jira_and_threat_intents_are_routed_but_not_executed(monkeypatch) -> None:
@@ -589,7 +636,18 @@ def test_mock_hr_and_it_connectors_enforce_scopes(monkeypatch) -> None:
     assert "20 working days" in leave.json()["answer"]
     assert leave.json()["sources"][0]["document_id"] == "demo-hr-annual-leave"
 
-    it = employee_client.post(
+    denied_it = employee_client.post(
+        "/api/v1/connectors/it/troubleshooting",
+        json={"question": "Salesforce login troubleshooting"},
+    )
+    assert denied_it.status_code == 403
+
+    it_client = TestClient(app)
+    it_client.post(
+        "/api/v1/auth/demo-login",
+        json={"user_id": "demo-it"},
+    )
+    it = it_client.post(
         "/api/v1/connectors/it/troubleshooting",
         json={"question": "Salesforce login troubleshooting"},
     )

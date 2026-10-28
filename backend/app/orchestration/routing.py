@@ -63,7 +63,7 @@ _ROUTES: tuple[
         "it_knowledge",
         re.compile(
             r"\b(salesforce|troubleshoot|troubleshooting|login|log in|password|"
-            r"multi.factor|mfa|sign.in error)\b",
+            r"multi.factor|mfa|sign.in error|incident|runbook|it support)\b",
             re.IGNORECASE,
         ),
     ),
@@ -93,11 +93,27 @@ class RouteDecision(BaseModel):
     category: RouteCategory
     component: RouteComponent
     workflow: RouteWorkflow
+    required_scope: Literal["hr", "it", "recruitment"] | None = None
     needs_clarification: bool = False
     clarification_prompt: str | None = None
 
 
+_HR_RESTRICTED_PATTERN = re.compile(
+    r"\b(onboarding|induction|orientation|new starter|new hire|new employee checklist)\b",
+    re.IGNORECASE,
+)
+
+
 def _classify_intent(question: str) -> RouteDecision:
+    if _HR_RESTRICTED_PATTERN.search(question):
+        return RouteDecision(
+            intent="hr.policy",
+            category="knowledge",
+            component="hr_knowledge",
+            workflow="knowledge",
+            required_scope="hr",
+        )
+
     has_recruitment_context = bool(_RECRUITMENT_PATTERN.search(question))
     if _ANALYTICAL_PATTERN.search(question) and not (
         has_recruitment_context and _RECRUITMENT_FEE_PATTERN.search(question)
@@ -123,6 +139,11 @@ def _classify_intent(question: str) -> RouteDecision:
                     if category in ("workflow", "unsupported")
                     else "knowledge"
                 ),
+                required_scope={
+                    "hr_knowledge": "hr",
+                    "it_knowledge": "it",
+                    "recruitment": "recruitment",
+                }.get(component),
                 needs_clarification=(
                     is_unavailable_action or component == "threat_analysis"
                 ),

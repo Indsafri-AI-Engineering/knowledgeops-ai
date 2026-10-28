@@ -1,0 +1,42 @@
+[
+  {
+    "question": "How many annual leave days do employees receive?",
+    "expected_intent": "hr.policy",
+    "expected_component": "hr_knowledge"
+  },
+  {
+    "question": "What steps are included in the employee onboarding checklist?",
+    "expected_intent": "hr.policy",
+    "expected_component": "hr_knowledge"
+  },
+  {
+    "question": "Help troubleshoot a Salesforce login error",
+    "expected_intent": "it.troubleshooting",
+    "expected_component": "it_knowledge"
+  },
+  {
+    "question": "What are the incident-triage steps in the IT support runbook?",
+    "expected_intent": "it.troubleshooting",
+    "expected_component": "it_knowledge"
+  },
+  {
+    "question": "What success fee applies under the recruitment agreement?",
+    "expected_intent": "recruitment.knowledge",
+    "expected_component": "recruitment"
+  },
+  {
+    "question": "Which Jira issues are assigned to the AI team?",
+    "expected_intent": "jira.search",
+    "expected_component": "jira"
+  },
+  {
+    "question": "Scan this email for phishing",
+    "expected_intent": "threat.scan",
+    "expected_component": "threat_analysis"
+  },
+  {
+    "question": "Where can I find the data policy?",
+    "expected_intent": "knowledge.question",
+    "expected_component": "knowledge_base"
+  }
+]

@@ -32,15 +32,17 @@ The dedicated Jira workspace is a real Jira Cloud REST integration when
 credentials remain on the backend. Issue reads require `jira:read`; writes
 require `jira:approve` and explicit user confirmation. The Jira service account
 is subject to its own project permissions. Jira remains optional and does not
-change the local JSON storage used for the knowledge corpus, conversations,
-or audit records.
+change the local JSON storage used for the knowledge corpus or audit records.
 
 The knowledge store validates the complete JSON structure and fails without
 overwriting a corrupt file. Writes use a temporary file and atomic replacement.
 The repository abstraction keeps document and chunk persistence separate from
-the API and retrieval logic. Conversations, audit events, and user profile
-metadata are also stored locally; credentials, tokens, roles, and permissions
-are not written to user JSON records.
+the API and retrieval logic. Chat is stateless: question and answer text are
+not written to an application conversation store, included in audit metadata,
+or used as context for later requests. Only the current response is held in
+frontend component memory and is replaced when the next question is submitted.
+Audit events record chat routing and source counts only. Credentials, tokens,
+roles, and permissions are not written to user JSON records.
 
 Hosted Groq or Mistral inference remains an explicit configuration choice.
 Those integrations fail closed unless `AI_DATA_CLASS=synthetic` is set; this

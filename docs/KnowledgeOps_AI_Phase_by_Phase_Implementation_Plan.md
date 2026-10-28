@@ -86,14 +86,12 @@ KnowledgeOps-AI/
 │   │   │   └── user.py
 │   │   ├── repositories/
 │   │   │   ├── interfaces.py
-│   │   │   ├── json_chat_repository.py
 │   │   │   └── json_user_repository.py
 │   │   ├── services/
 │   │   │   └── chat_service.py
 │   │   └── main.py
 │   ├── data/
-│   │   ├── users.json
-│   │   └── conversations.json
+│   │   └── users.json
 │   ├── tests/
 │   │   ├── test_health.py
 │   │   ├── test_chat.py
@@ -138,15 +136,16 @@ that every dependency or integration is operational.
 
 Use Pydantic models to validate incoming requests and outgoing
 responses. Initial models include User, Chat Request, Chat Response,
-Conversation, Message, and Knowledge Source Metadata.
+and Knowledge Source Metadata. Chat is stateless: do not create
+conversation or message models for storing chat transcripts.
 
 Keep models separate from the storage implementation so they can be
 reused if the persistence layer changes.
 
 ### C. Implement JSON repositories
 
-Create repository interfaces and JSON implementations for the initial
-entities.
+Create repository interfaces and JSON implementations for persistent
+entities such as users. Do not persist chat questions or answers.
 
 Example user repository interface:
 
@@ -191,8 +190,7 @@ Example request:
 
 ``` json
 {
-  "message": "What is the company's leave policy?",
-  "conversation_id": null
+  "question": "What is the fictional leave policy?"
 }
 ```
 
@@ -200,7 +198,7 @@ Example response:
 
 ``` json
 {
-  "conversation_id": "demo-conversation-001",
+  "question": "What is the fictional leave policy?",
   "answer": "The knowledge retrieval capability will be implemented in Phase 2.",
   "sources": [],
   "status": "foundation"
@@ -213,7 +211,7 @@ The identifiers and content are illustrative examples.
 
 Create the initial React and TypeScript application using Vite. The
 interface should include: - KnowledgeOps AI application title. - Chat
-input field and send button. - Message history area. - Loading
+input field and send button. - Current response area. - Loading
 indicator. - Error message display. - Source citation area, initially
 empty.
 
@@ -232,11 +230,11 @@ frontend-to-backend connection.
                           information             authentication is
                                                   introduced in Phase 5
 
-  `POST /api/v1/chat`     Submit a chat message   Implement basic
-                                                  validated response
+  `POST /api/v1/chat`     Submit an independent  Implement basic
+                          question                validated response
 
-  JSON repository         Store initial users and Implement
-  operations              conversations           
+  JSON repository         Store initial users     Implement
+  operations                                      
   -----------------------------------------------------------------------
 
 The `/api/v1/me` endpoint must not claim to provide authenticated
@@ -514,6 +512,15 @@ appropriate authorization and confirmation.
 -   Results accurately reflect what the external system reports.
 -   Failed actions are not reported as successful.
 
+## Current Phase 7 progress
+
+The direct Jira Cloud API supports authorized search and explicitly confirmed
+issue changes. An optional n8n webhook now receives a minimal event after
+successful issue creation; delivery status is returned separately from the
+Jira result and recorded in the audit log. See `docs/N8N_SETUP.md`. The actual
+n8n workflow URL and secret remain deployment configuration, and live
+end-to-end delivery still needs verification in an approved test workspace.
+
 ------------------------------------------------------------------------
 
 # Phase 8 --- Threat and Fraud Detection
@@ -571,6 +578,16 @@ behaviour.
 -   Retrieval quality can be compared across configurations.
 -   Evaluation results are recorded rather than inferred from a few
     successful demonstrations.
+
+## Current Phase 9 progress
+
+The deterministic synthetic evaluation runner reports retrieval MRR@3 and
+expected-source hit rate for vector, keyword, and hybrid search; routing
+accuracy; restricted-scope denial/leak checks; and threat-detection metrics.
+The evaluation inputs are versioned under `tests/evaluation/`. These checks
+are a smoke baseline, not a production quality claim. Answer faithfulness,
+answer relevancy, citation precision, latency/error distributions, and an
+approved go/no-go threshold remain to be added.
 
 ------------------------------------------------------------------------
 

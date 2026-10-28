@@ -15,15 +15,14 @@ _TEST_RUNTIME_DIRECTORY = tempfile.TemporaryDirectory(
 )
 _TEST_RUNTIME_PATH = Path(_TEST_RUNTIME_DIRECTORY.name)
 os.environ["KNOWLEDGE_STORE_PATH"] = str(_TEST_RUNTIME_PATH / "knowledge.json")
-os.environ["CONVERSATION_STORE_PATH"] = str(
-    _TEST_RUNTIME_PATH / "conversations.json"
-)
 os.environ["AUDIT_LOG_PATH"] = str(_TEST_RUNTIME_PATH / "audit.jsonl")
 os.environ["SECURITY_ALERTS_PATH"] = str(
     _TEST_RUNTIME_PATH / "security_alerts.json"
 )
 os.environ.pop("N8N_ALERT_WEBHOOK_URL", None)
 os.environ.pop("N8N_ALERT_WEBHOOK_TOKEN", None)
+os.environ.pop("N8N_JIRA_WEBHOOK_URL", None)
+os.environ.pop("N8N_JIRA_WEBHOOK_TOKEN", None)
 for key in ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN"):
     os.environ.pop(key, None)
 os.environ["SECURITY_DENIAL_THRESHOLD"] = "5"

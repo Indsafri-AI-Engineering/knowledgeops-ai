@@ -28,7 +28,7 @@ DEMO_USERS: dict[DemoUserId, DemoUser] = {
         user_id="demo-employee",
         display_name="Alex Employee",
         role="employee",
-        capabilities=["chat:ask", "knowledge:read:general", "knowledge:read:it"],
+        capabilities=["chat:ask", "knowledge:read:general"],
     ),
     "demo-hr": DemoUser(
         user_id="demo-hr",

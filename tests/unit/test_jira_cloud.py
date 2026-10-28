@@ -181,6 +181,12 @@ def test_jira_api_uses_capabilities_and_requires_explicit_write_confirmation(
     monkeypatch.setenv("JIRA_BASE_URL", "https://example.atlassian.net")
     monkeypatch.setenv("JIRA_EMAIL", "service@example.test")
     monkeypatch.setenv("JIRA_API_TOKEN", "test-token")
+    monkeypatch.setenv("N8N_JIRA_WEBHOOK_URL", "https://n8n.example.test/webhook/jira")
+
+    def unexpected_notification(*args, **kwargs):
+        raise AssertionError("Unauthorized or unconfirmed writes must not notify n8n.")
+
+    monkeypatch.setattr(httpx, "post", unexpected_notification)
     monkeypatch.setattr(
         httpx,
         "request",
@@ -251,8 +257,102 @@ def test_jira_api_returns_created_issue_with_cors_headers(monkeypatch) -> None:
         "id": "10002",
         "key": "OPS-16",
         "url": "https://example.atlassian.net/browse/OPS-16",
+        "notification_status": "not_configured",
     }
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+@pytest.mark.parametrize(
+    ("webhook_status", "expected_status"),
+    [(200, "sent"), (503, "failed")],
+)
+def test_jira_issue_notification_reports_delivery_without_sending_issue_content(
+    monkeypatch,
+    tmp_path,
+    webhook_status: int,
+    expected_status: str,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    monkeypatch.setenv("AUTH_MODE", "demo")
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
+    monkeypatch.setenv("JIRA_BASE_URL", "https://example.atlassian.net")
+    monkeypatch.setenv("N8N_JIRA_WEBHOOK_URL", "https://n8n.example.test/webhook/jira")
+    monkeypatch.setenv("N8N_JIRA_WEBHOOK_TOKEN", "test-n8n-token")
+    monkeypatch.setattr(
+        "backend.app.api.v1.jira._client",
+        lambda: SimpleNamespace(
+            create_issue=lambda **kwargs: {
+                "id": "10002",
+                "key": "OPS-16",
+                "url": "https://example.atlassian.net/rest/api/3/issue/10002",
+            }
+        ),
+    )
+    captured: dict[str, object] = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(url=url, **kwargs)
+        return _response({}, status_code=webhook_status)
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    client = TestClient(app)
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    response = client.post(
+        "/api/v1/jira/issues",
+        json={
+            "project_key": "OPS",
+            "issue_type_id": "10001",
+            "summary": "Investigate sign-in error",
+            "description": "Detailed potentially sensitive issue description.",
+            "confirmed": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["key"] == "OPS-16"
+    assert response.json()["notification_status"] == expected_status
+    assert captured["url"] == "https://n8n.example.test/webhook/jira"
+    assert captured["headers"]["Authorization"] == "Bearer test-n8n-token"
+    assert captured["json"] == {
+        "event": "knowledgeops.jira.issue_created",
+        "issue_key": "OPS-16",
+        "project_key": "OPS",
+        "issue_url": "https://example.atlassian.net/browse/OPS-16",
+    }
+
+
+def test_jira_issue_creation_failure_does_not_notify_n8n(monkeypatch) -> None:
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    monkeypatch.setenv("AUTH_MODE", "demo")
+    monkeypatch.setenv("JIRA_BASE_URL", "https://example.atlassian.net")
+    monkeypatch.setenv("N8N_JIRA_WEBHOOK_URL", "https://n8n.example.test/webhook/jira")
+    monkeypatch.setattr(
+        "backend.app.api.v1.jira._client",
+        lambda: SimpleNamespace(
+            create_issue=lambda **kwargs: (_ for _ in ()).throw(JiraRequestError(403))
+        ),
+    )
+
+    def unexpected_notification(*args, **kwargs):
+        raise AssertionError("n8n must not be notified when Jira creation fails.")
+
+    monkeypatch.setattr(httpx, "post", unexpected_notification)
+    client = TestClient(app)
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    response = client.post(
+        "/api/v1/jira/issues",
+        json={
+            "project_key": "OPS",
+            "issue_type_id": "10001",
+            "summary": "Investigate sign-in error",
+            "description": "The login page returns an error.",
+            "confirmed": True,
+        },
+    )
+
+    assert response.status_code == 502
 
 
 def test_jira_api_reports_missing_credentials_without_leaking_secrets(

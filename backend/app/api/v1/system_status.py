@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from backend.app.core.auth import auth_mode, get_current_user
 from backend.app.integrations.jira_cloud import JiraCloudClient
-from backend.app.integrations.n8n import N8nAlertNotifier
+from backend.app.integrations.n8n import N8nAlertNotifier, N8nJiraNotifier
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -122,15 +122,17 @@ def read_system_status() -> SystemStatusResponse:
         index for index, component in enumerate(components)
         if component.name == "n8n notifications"
     )
-    n8n_configured = N8nAlertNotifier().configured
+    n8n_configured = (
+        N8nAlertNotifier().configured or N8nJiraNotifier().configured
+    )
     components[n8n_index] = SystemComponent(
         name="n8n notifications",
         category="integration",
         mode="external" if n8n_configured else "disabled",
         description=(
-            "Configured webhook receives minimal security-alert metadata."
+            "Configured webhooks receive minimal Jira-creation or security-alert metadata."
             if n8n_configured
-            else "No valid security-alert webhook is configured."
+            else "No valid Jira or security-alert webhook is configured."
         ),
         external_connection=n8n_configured,
     )

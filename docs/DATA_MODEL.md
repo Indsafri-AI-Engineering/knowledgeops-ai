@@ -33,9 +33,9 @@ rejected.
 
 Embedded Qdrant vectors are stored separately under `data/runtime/qdrant/`;
 they are derived search data, not the authoritative document store. Changing
-the embedding model creates a distinct collection. Conversation, audit, and
-user profile records use JSON files under the same ignored runtime directory.
-No automatic retention schedule is configured.
+the embedding model creates a distinct collection. Audit and user profile
+records use JSON files under the same ignored runtime directory. Chat question
+and answer history is not persisted.
 
 The local JSON and embedded-vector stores are single-machine development
 components. Backups, retention/deletion policy, encryption, multi-process

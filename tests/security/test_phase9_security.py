@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 from backend.app.knowledge.index import get_knowledge_index
 from backend.app.knowledge.ingestion import load_knowledge_chunks
 from backend.app.knowledge.retrieval import LocalKnowledgeIndex
+from backend.app.core.demo_auth import DEMO_USERS
+from backend.app.core.permissions import user_scopes
 from backend.app.main import app
 
 
@@ -17,12 +19,12 @@ def test_retrieval_cache_is_partitioned_by_permission_scope() -> None:
     )
     employee_results = index.search(
         question,
-        {"general", "it"},
+        set(user_scopes(DEMO_USERS["demo-employee"])),
         mode="hybrid",
     )
     repeated_employee_results = index.search(
         question,
-        {"general", "it"},
+        set(user_scopes(DEMO_USERS["demo-employee"])),
         mode="hybrid",
     )
 

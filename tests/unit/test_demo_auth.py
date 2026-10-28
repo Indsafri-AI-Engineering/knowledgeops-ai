@@ -84,6 +84,7 @@ def test_demo_authentication_lifecycle(monkeypatch) -> None:
     assert current_user.status_code == 200
     assert current_user.json()["user_id"] == "demo-employee"
     assert "knowledge:read:hr" not in current_user.json()["capabilities"]
+    assert "knowledge:read:it" not in current_user.json()["capabilities"]
 
     assert client.post("/api/v1/auth/logout").status_code == 204
     assert client.get("/api/v1/me").status_code == 401

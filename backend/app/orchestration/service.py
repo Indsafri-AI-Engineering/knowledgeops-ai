@@ -28,6 +28,7 @@ class OrchestrationResult(BaseModel):
     workflow_status: Literal["available", "planned"]
     sources: list[SourceCitation]
     needs_clarification: bool
+    audit_outcome: Literal["success", "denied"] = "success"
     audit_action: str | None = None
     audit_metadata: dict[str, str | int | bool] = Field(default_factory=dict)
 
@@ -205,6 +206,24 @@ def orchestrate_request(
     retrieval_mode: RetrievalMode,
 ) -> OrchestrationResult:
     test_fixture_mode = os.getenv("ENABLE_TEST_FIXTURES", "").lower() == "true"
+
+    if route.required_scope and route.required_scope not in user_scopes(user):
+        department = {
+            "hr": "HR",
+            "it": "IT",
+            "recruitment": "Recruitment",
+        }[route.required_scope]
+        return OrchestrationResult(
+            answer=(
+                f"You are not authorized to access this {department} information. "
+                f"Contact your {department} administrator if you believe you "
+                "should have access."
+            ),
+            workflow_status="available",
+            sources=[],
+            needs_clarification=True,
+            audit_outcome="denied",
+        )
 
     if route.category == "unsupported":
         return _planned_workflow(route)

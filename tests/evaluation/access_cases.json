@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What steps are included in the employee onboarding checklist?",
+    "required_scope": "hr"
+  },
+  {
+    "question": "What success fee applies under the recruitment agreement?",
+    "required_scope": "recruitment"
+  },
+  {
+    "question": "What are the incident-triage steps in the IT support runbook?",
+    "required_scope": "it"
+  }
+]

@@ -49,8 +49,9 @@ Write calls require `confirmed: true` and a user authorized with
 audited with issue identifiers and action names, not comment or description
 text. Jira operations use the configured service account's project
 permissions, so grant it only the access required for the selected projects.
-The application still stores its knowledge corpus and audit/conversation
-records locally; connecting Jira does not migrate those stores.
+The application stores its knowledge corpus and audit records locally;
+individual chat questions and answers are not persisted. Connecting Jira does
+not migrate those stores.
 
 ## Threat detection and security alerts
 
@@ -98,6 +99,16 @@ alert and explicitly confirm a response-workflow request before the app
 dispatches the minimal event to n8n. The app does not accept inbound n8n
 response commands or perform automatic remediation.
 
+An optional `N8N_JIRA_WEBHOOK_URL` sends a `knowledgeops.jira.issue_created`
+event only after Jira confirms issue creation. The payload contains the event,
+issue key, project key, and Jira browse URL; it omits issue summary and
+description. Configure `N8N_JIRA_WEBHOOK_TOKEN` separately from the security
+alert token. A webhook delivery failure is reported as `notification_status:
+"failed"` in the successful Jira creation response and does not misreport the
+Jira issue itself as failed. Missing configuration reports
+`notification_status: "not_configured"`.
+See [N8N_SETUP.md](N8N_SETUP.md) for workflow and environment setup.
+
 The scanner does not provide antivirus, malware detonation, external
 reputation lookups, or a full DLP classifier. `no-known-indicator` is not
 proof of safety; results are risk signals for human review, not confirmed
@@ -140,16 +151,23 @@ derived vectors in local Qdrant. The JSON store remains authoritative.
 
 ## Chat and citations
 
-`POST /api/v1/chat` accepts `question`, optional `retrieval_mode` (`vector`,
-`keyword`, or `hybrid`), and optional `conversation_id`. `vector` uses dense
-embedding search, `keyword` uses BM25, and `hybrid` fuses the dense and BM25
-rankings with Reciprocal Rank Fusion (RRF, `k=60`). Each retriever fetches up
-to five times the requested result count before fusion; duplicate chunks
-across retrievers contribute once per ranking. Scope restrictions are applied
-independently to both candidate sets before ranking. The backend filters
-documents by the authenticated user's capabilities before retrieval. Answers
-return source references and indicate when no supporting evidence was found.
-Empty retrieval does not invoke the generation model.
+`POST /api/v1/chat` accepts `question` and optional `retrieval_mode` (`vector`,
+`keyword`, or `hybrid`). Each request is independent: chat requests do not
+accept conversation IDs, use previous turns as context, or persist questions
+and answers. Responses contain only the current question and answer. `vector`
+uses dense embedding search, `keyword` uses BM25, and `hybrid` fuses the dense
+and BM25 rankings with Reciprocal Rank Fusion (RRF, `k=60`). Each retriever
+fetches up to five times the requested result count before fusion; duplicate
+chunks across retrievers contribute once per ranking. Scope restrictions are
+applied independently to both candidate sets before ranking. The backend
+filters documents by the authenticated user's capabilities before retrieval.
+HR, IT, and recruitment requests require their corresponding knowledge scope.
+If the authenticated user lacks that scope, chat returns an authorization
+message with no source citations and does not search the knowledge index.
+Answers return source references and indicate when no supporting evidence
+was found. Empty retrieval does not invoke the generation model. The employee
+demo role is limited to `general`; IT knowledge is limited to the IT-support
+role.
 
 Chat responses include `intent`, `route_category` (`knowledge`, `workflow`,
 `analytical`, or `unsupported`), and `route_component`. Knowledge and
@@ -166,10 +184,6 @@ Groq and Mistral require explicit provider selection, credentials, and
 hosted providers with real, confidential, personal, or otherwise
 unapproved content. Provider calls are not made as part of startup or this
 documentation workflow.
-
-Conversations are owner-scoped and stored in the ignored JSON file
-`data/runtime/conversations.json` (override with
-`CONVERSATION_STORE_PATH`). Conversation history is capped at 20 turns.
 
 ## Other active endpoints
 
