@@ -1,0 +1,22 @@
+[
+  {
+    "question": "How many annual leave days do employees receive?",
+    "allowed_scopes": ["general"],
+    "expected_document_id": "demo-hr-annual-leave"
+  },
+  {
+    "question": "Salesforce login error troubleshooting multi-factor authentication",
+    "allowed_scopes": ["general", "it"],
+    "expected_document_id": "demo-it-salesforce-login"
+  },
+  {
+    "question": "What success fee applies under the recruitment agreement?",
+    "allowed_scopes": ["recruitment"],
+    "expected_document_id": "demo-recruitment-agreement"
+  },
+  {
+    "question": "What customer data should not be pasted into unapproved AI tools?",
+    "allowed_scopes": ["general"],
+    "expected_document_id": "demo-it-customer-data"
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "faq_id": "annual-leave",
+    "question": "How many annual leave days do employees receive?",
+    "access_scope": "general",
+    "keywords": ["annual leave", "entitlement", "days", "leave balance"]
+  },
+  {
+    "faq_id": "leave-request",
+    "question": "How do I request annual leave and who approves it?",
+    "access_scope": "general",
+    "keywords": ["leave request", "People Portal", "team manager", "approval"]
+  },
+  {
+    "faq_id": "salesforce-login",
+    "question": "How do I troubleshoot a Salesforce login problem?",
+    "access_scope": "general",
+    "keywords": ["Salesforce", "login", "troubleshooting", "multi-factor"]
+  },
+  {
+    "faq_id": "customer-data",
+    "question": "How should customer data be handled?",
+    "access_scope": "general",
+    "keywords": ["customer data", "approved systems", "security", "AI tools"]
+  },
+  {
+    "faq_id": "backend-engineer-cv-match",
+    "question": "How many CVs meet the backend engineer campaign criteria?",
+    "access_scope": "recruitment",
+    "keywords": ["recruitment", "campaign", "CV", "candidates", "Python", "match"]
+  },
+  {
+    "faq_id": "recruitment-fee",
+    "question": "What success fee applies under the recruitment agreement?",
+    "access_scope": "recruitment",
+    "keywords": ["recruitment", "success fee", "agreement", "candidate"]
+  }
+]

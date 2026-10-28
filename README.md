@@ -1,10 +1,215 @@
 # KnowledgeOps AI --- Enterprise Knowledge and Intelligent Operations Platform
 
 > **Document type:** High-Level Design (HLD) / evolving project README\
-> **Status:** Proposed architecture --- implementation status must be
-> verified feature by feature\
+> **Status:** Phase 6 uses approved documents through the existing
+> permission-aware ingestion pipeline. A live Jira Cloud integration is
+> implemented and requires backend credentials. Mock HR, recruitment, and IT
+> connectors are out of scope; production decisions remain pending.\
 > **Version:** 0.2\
-> **Last updated:** 2026-10-22
+> **Last updated:** 2026-10-26
+
+## Local application quick start
+
+The application starts with a small, clearly labeled fictional Northstar
+Works knowledge corpus under `data/fictional_demo/`. Its general, HR, IT, and
+recruitment documents are access-scoped and intended only for local
+demonstration. Add more authorized documents through the authenticated
+knowledge-management interface. Follow the
+[local identity setup](docs/LOCAL_IDENTITY_SETUP.md) to configure Keycloak.
+The short Windows/PowerShell setup is:
+
+1. From the repository root, install backend development dependencies:
+
+   ```powershell
+   python -m pip install -e ".[dev]"
+   ```
+
+   For runtime dependencies without the development test tools, use
+   `python -m pip install -r requirements.txt`.
+
+2. Create the local environment file from the example if it does not
+   already exist, then edit `.env` as needed:
+
+   ```powershell
+   if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+   ```
+
+   The backend loads the repository-root `.env` automatically at startup.
+   Existing process environment variables take precedence. Keep credentials
+   in `.env` or a secret manager; never add them to `.env.example`.
+
+3. Configure the frontend OIDC client:
+
+   ```powershell
+   if (-not (Test-Path frontend\.env.local)) {
+       Copy-Item frontend\.env.example frontend\.env.local
+   }
+   ```
+
+4. Start the backend in that terminal:
+
+   ```powershell
+   python -m uvicorn backend.app.main:app --reload
+   ```
+
+5. In a second terminal, start the frontend:
+
+   ```powershell
+   Set-Location frontend
+   npm ci
+   npm run dev
+   ```
+
+6. Open the Vite URL, sign in through the configured OIDC provider, and
+   upload documents you are authorized to process.
+
+## Phase 6: Verify fictional and uploaded scoped knowledge
+
+The running application preloads synthetic examples from
+`data/fictional_demo/`. They describe the invented Northstar Works and are
+not real company policies. The corpus lets users try scoped HR, IT,
+recruitment, and general questions immediately. Do not treat these examples
+as real operational advice.
+
+Example questions:
+
+- Employee: “How should I handle an unexpected multi-factor prompt?”
+- HR user: “How many working days of annual leave does a full-time employee
+  receive?”
+- IT support: “What should I do if the training account is locked?”
+- Recruiter: “What skills does the fictional Platform Support Analyst
+  campaign ask applicants to demonstrate?”
+
+For additional material, an authorized knowledge manager can upload
+owner-approved documents through **Knowledge assistant → Knowledge
+documents**. Do not process real company or personal data until identity,
+storage, and model-provider approvals are in place.
+
+For each document:
+
+1. Select the access scope that matches the approved audience: `hr`,
+   `recruitment`, `it`, or `general`. The scope is enforced by the backend
+   before retrieval, not just by the interface.
+2. Enter an accurate title and upload a supported document. The upload is
+   security-inspected and extracted text is chunked and stored for search.
+3. Sign in as a user with that scope, ask a question answerable from the
+   document, and verify the response cites its title, section, and source.
+4. Sign in as a user without that scope and ask the same question. Verify
+   the restricted document is absent from the returned citations and its
+   restricted content is not included in the answer.
+5. Uploaded documents appear in the stored-document list. The built-in
+   fictional seed documents are source files under `data/fictional_demo/`;
+   their citations identify the title and relative source path.
+
+OIDC group mappings must grant `knowledge:manage` to upload or delete
+documents, and `chat:ask` plus the relevant `knowledge:read:<scope>`
+capability to retrieve them. Synthetic scope-isolation and citation tests
+can be run without uploading organization documents:
+
+```powershell
+python -m pytest tests\unit\test_knowledge_documents.py tests\unit\test_knowledge_chat.py -q
+```
+
+To run the regression tests and deterministic evaluation, use separate
+commands from the repository root:
+
+```powershell
+python -m pytest -q
+```
+
+The Phase 9 synthetic smoke report can be run with:
+
+```powershell
+python -m backend.app.evaluation.run_demo_evaluation
+```
+
+It reports retrieval MRR@3 and expected-source hit rate, routing accuracy,
+restricted-scope denials/leaks, and synthetic threat-detection metrics. These
+are repeatable fixture results, not production quality claims; answer
+faithfulness/relevancy and latency/error evaluation remain future work.
+
+The `.env.example` file documents configuration names and can be copied to
+`.env`. Mock connector routes are enabled only by isolated automated tests.
+Authenticated users mapped to `threat_scans:scan` can use the local
+threat-analysis workspace.
+
+Dense retrieval uses local embedded Qdrant with Ollama embeddings. Install
+and start Ollama, ensure the configured models are available, and retain the
+default settings in `.env`:
+
+```powershell
+ollama pull nomic-embed-text
+ollama pull llama3.2:3b
+```
+
+For hosted chat generation using synthetic-only content, select Groq or
+Mistral and explicitly set `AI_DATA_CLASS=synthetic`. Set `GROQ_API_KEY` or
+`MISTRAL_API_KEY` in the local `.env`; never put secret values in tracked
+files. Groq is a chat provider only here; Ollama or Mistral can provide
+embeddings. Add these settings to `.env` for Groq:
+
+```dotenv
+RAG_BACKEND=qdrant
+RAG_EMBEDDING_PROVIDER=ollama
+RAG_GENERATION_BACKEND=groq
+AI_DATA_CLASS=synthetic
+GROQ_API_KEY=
+```
+
+For Mistral chat and embeddings, set `RAG_GENERATION_BACKEND=mistral` and
+`RAG_EMBEDDING_PROVIDER=mistral`; configure `MISTRAL_API_KEY`. Mistral
+embedding and chat model IDs can be selected with
+`MISTRAL_EMBEDDING_MODEL` and `MISTRAL_CHAT_MODEL`; Groq's chat model is set
+with `GROQ_CHAT_MODEL`. Chat requests and retrieved evidence are sent to the
+selected hosted provider, and Mistral embeddings send indexed document text
+and queries to Mistral. The application fails closed unless
+`AI_DATA_CLASS=synthetic` is explicitly set. This is an operator assertion,
+not automatic detection: use only generated synthetic documents and synthetic
+questions with hosted providers.
+
+The default Ollama models can be downloaded locally with
+`ollama pull nomic-embed-text` and `ollama pull llama3.2:3b`. LangChain uses
+Ollama for embeddings and chat generation; embedded Qdrant persists vectors
+under `data/runtime/`. The chat model receives only scope-filtered retrieved
+chunks, is instructed to treat them as untrusted evidence, and must cite
+source labels. If retrieval finds no evidence, the model is not called and
+the API returns an abstention. If Ollama is unavailable or the model is
+missing, the request fails rather than silently substituting a template.
+The default remains the local lexical retriever and deterministic answer
+template when `RAG_BACKEND=local`; the checked-in `.env.example` selects
+Qdrant and Ollama. The backend loads `.env` automatically, and process
+environment values take precedence.
+
+For local OIDC with Keycloak, see the
+[local identity setup](docs/LOCAL_IDENTITY_SETUP.md). The active application
+requires provider-issued bearer tokens and maps configured groups to
+allowlisted capabilities.
+
+## Current implementation and limitations
+
+The running application uses OIDC authentication, permission-filtered
+document retrieval, local JSON persistence for document metadata and extracted
+chunks, optional embedded Qdrant vectors, source citations, a stateless chat
+interface, an authenticated system-status panel, and an optional live Jira
+Cloud workspace. Chat requests and answers are not persisted or carried into
+later requests. The Jira integration uses a backend-only service-account
+token; search requires `jira:read`, and issue changes require `jira:approve`
+plus an explicit confirmation. Knowledge, audit, and other application
+records remain local JSON for now. Users with
+`knowledge:manage` can upload PDF, DOCX, TXT, Markdown, HTML, XLSX, and PPTX
+documents. The active corpus includes clearly fictional seed documents and
+any authorized uploaded documents. Fictional fixtures and mock connector
+implementations are not exposed by the application; Jira Cloud is a separate
+real integration. Current
+contracts are documented in [API.md](docs/API.md)
+and system boundaries in [ARCHITECTURE.md](docs/ARCHITECTURE.md). The HLD
+below is retained as future-scope reference; its fictional examples and older
+prototype assumptions do not describe active runtime behavior. Production
+identity, source, provider, retention, and deployment decisions remain
+subject to approval.
+
+The optional Jira issue-created notification to n8n is configured separately;
+see [N8N_SETUP.md](docs/N8N_SETUP.md).
 
 ## 1. Project Overview
 
@@ -278,7 +483,7 @@ flowchart TD
     LLM --> API
 
     ORCH --> CACHE[Permission-Aware FAQ / Answer Cache]
-    API --> AUDIT[(Audit Logs + Conversation Metadata)]
+    API --> AUDIT[(Audit Logs: Routing and Source Counts)]
     CONNECT --> APPROVAL[Approval Gate for Sensitive Writes]
     APPROVAL --> JIRA
     APPROVAL --> N8N[n8n Approved Notifications]
@@ -353,8 +558,7 @@ flowchart TD
                           (RRF)                   result rankings
 
   Relational data         PostgreSQL              Users, permissions,
-                                                  metadata,
-                                                  conversations, actions,
+                                                  metadata, actions,
                                                   audit events
 
   Optional flexible store MongoDB only if a clear Flexible records; not a
@@ -632,40 +836,94 @@ as "manager" or "administrator."
 This module is separate from the general enterprise Q&A workflow but can
 use Knowledge AI to retrieve security policies and explain its findings.
 
+### Current implementation
+
+- **Pre-ingestion inspection:** uploaded bytes receive a static preflight
+  before document parsers run. Extracted text is then scanned before chunks
+  are indexed or sent to an embedding provider. High-severity credential and
+  key indicators block ingestion by default (`THREAT_INGESTION_BLOCK_SEVERITY=high`).
+  Lower-severity indicators create alerts and remain ingestible unless the
+  operator raises the threshold.
+- **Interactive scans:** authorized security analysts can inspect URLs,
+  pasted email, and pasted `.txt`, `.md`, or `.eml` text in **Threat analysis**.
+  URL checks are local and never fetch submitted URLs.
+- **Application event monitoring:** the audit pipeline counts repeated
+  authentication and authorization denials in a configurable in-process time
+  window and creates an alert when the threshold is reached.
+- **Alert review:** security analysts can list, acknowledge, resolve, or mark
+  alerts as false positives. Alerts preserve rule IDs, explanations, severity,
+  detector version, actor, and (for uploads) a SHA-256 fingerprint. Matched
+  secret values, submitted text, and uploaded filenames are not included in
+  alert records.
+- **n8n:** an optional authenticated outbound webhook sends minimal alert
+  metadata. Delivery success/failure appears on the alert. An analyst can
+  acknowledge and explicitly confirm a response-workflow dispatch. The app
+  does not accept inbound n8n commands or automatically remediate or create
+  Jira issues. A separate optional Jira webhook can notify after a confirmed
+  issue is created; it sends only the event, issue key, project key, and Jira
+  URL.
+
+To test document blocking, ingest a harmless synthetic TXT containing
+`api_key = fictionalSecretValue983721`; the upload should return HTTP 422,
+create a redacted alert, and add no document to the index. To test a
+lower-severity review alert, ingest a synthetic document labelled
+`STRICTLY CONFIDENTIAL`; by default it is stored with a security alert for
+review. For interactive scans, see the harmless samples and limitations in
+the Threat analysis panel.
+
+### Configuration and limitations
+
+Set `SECURITY_ALERTS_PATH` to an ignored runtime JSON path. Tune
+`SECURITY_DENIAL_THRESHOLD`, `SECURITY_DENIAL_WINDOW_SECONDS`, and
+`SECURITY_DENIAL_ALERT_COOLDOWN_SECONDS` for the expected local request rate.
+Set `N8N_ALERT_WEBHOOK_URL` and optionally `N8N_ALERT_WEBHOOK_TOKEN` to enable
+notifications; use HTTPS except for localhost development. Only alert
+metadata and rule IDs are sent to n8n.
+For Jira issue-created events, configure `N8N_JIRA_WEBHOOK_URL` and optionally
+`N8N_JIRA_WEBHOOK_TOKEN`. Jira creation remains successful if the subsequent
+notification fails; the API response reports the notification outcome.
+
+These are deterministic indicators, not antivirus, malware detonation,
+external reputation, or a full DLP classifier. The event window is
+in-process and resets on backend restart; alerts themselves are stored in the
+existing JSON persistence pattern. A no-indicator result is not proof of
+safety. Production use requires approved retention, monitor thresholds,
+external service controls, and security operations procedures.
+
 ### 12.1 Inputs and analysis
 
--   **URLs:** validate and normalise the URL, inspect permitted
-    indicators, check configured reputation sources, and safely handle
-    redirects.
--   **Emails:** parse headers and body, inspect sender/display-name
-    mismatches, extract URLs, and inspect attachment metadata.
--   **Documents:** validate actual file type and size, extract text and
-    metadata, identify embedded URLs and suspicious indicators, and use
-    safe static scanning.
--   **Detection:** apply deterministic rules first; add threat
-    intelligence and ML classifiers only where configured and evaluated.
+-   **URLs:** validate and normalise the URL and inspect deterministic
+    indicators such as numeric-IP hosts, punycode, non-HTTPS schemes, and
+    sensitive account-related path terms. No reputation lookup, redirect
+    handling, or network request is performed.
+-   **Emails:** inspect pasted RFC-style headers and plain-text body for
+    sender/reply-to mismatches, credential or urgency language, and URLs.
+    Attachment names may be noted; attachment contents are not read.
+-   **Documents:** inspect pasted text labelled `.txt`, `.md`, or `.eml`
+    for known indicators and URLs. Binary upload, file extraction,
+    metadata analysis, and malware scanning are not implemented.
+-   **Detection:** deterministic local rules are active. Threat
+    intelligence and ML classifiers are not connected.
 
 ### 12.2 Safe processing
 
--   Do not execute uploaded documents or email attachments.
--   Run risky parsing in isolated, resource-limited workers.
--   Protect URL scanning against server-side request forgery (SSRF),
-    private-network access, redirect abuse, and DNS rebinding.
--   Apply timeouts, size limits, and network egress restrictions.
--   Do not fetch arbitrary internal URLs from the server.
+-   The active scanner does not accept binary uploads, execute
+    documents/attachments, or fetch URLs.
+-   URL fetching, external reputation services, and binary parsing must
+    not be added without SSRF controls, isolated resource-limited
+    processing, timeouts, and network-egress restrictions.
 -   Treat reputation no-match as unknown, not proof of safety.
 -   Keep evidence, rule/model version, timestamp, and limitations with
     every finding.
 
 ### 12.3 Result and human review
 
-A finding should include the submitted artifact reference, verdict such
-as `suspicious`, `malicious-indicator-found`, `inconclusive`, or
-`no-known-indicator`, severity where justified, confidence where
-calibrated, evidence, detector version, and scan time. A scan verdict is
-not a final legal conclusion. The LLM may explain the evidence and
-retrieve relevant policy but must not create evidence or independently
-overrule the detector.
+A scan result includes the artifact type and fingerprint, verdict
+(`suspicious` or `no-known-indicator`), severity, matched rule evidence,
+detector version, scan time, and limitations. Confidence is not calibrated
+and is not reported. A scan verdict is not a final legal conclusion. The
+LLM may explain evidence and retrieve relevant policy but must not create
+evidence or independently overrule the detector.
 
 ### 12.4 Evaluation
 
@@ -707,9 +965,10 @@ after an authorised threat finding is escalated.
 
 ## 14. Data Model (Initial)
 
-Use relational tables for identity, source metadata, conversations,
-permissions, actions, and auditability. Keep original data in source
-systems where practical.
+Use relational tables for identity, source metadata, permissions, actions,
+and auditability. Keep original data in source systems where practical. The
+prototype does not persist individual chat sessions or messages; every chat
+request is independent.
 
   ------------------------------------------------------------------------
   Entity                  Purpose                 Example fields
@@ -735,14 +994,6 @@ systems where practical.
                           segments                `document_id`, `text`,
                                                   `embedding_ref`,
                                                   `section`, `page`
-
-  `conversations`         Chat sessions           `conversation_id`,
-                                                  `user_id`, `created_at`
-
-  `messages`              Permitted conversation  `message_id`,
-                          history                 `conversation_id`,
-                                                  `role`, `content_ref`,
-                                                  `created_at`
 
   `faq_items`             Curated common          `faq_id`, `question`,
                           questions               `approved_answer_ref`,
@@ -1001,9 +1252,8 @@ knowledgeops-ai/
   3                       Hybrid retrieval and    Vector-only comparison
                           metadata/ACL filtering  and permission tests
 
-  4                       LangChain routing,      Multiple intents route
-                          conversation state, FAQ to the right workflow
-                          suggestions             
+  4                       LangChain routing, FAQ  Multiple intents route
+                          suggestions              to the right workflow
 
   5                       Authentication, RBAC,   Role and
                           audit logs, secure      source-isolation tests
@@ -1072,8 +1322,8 @@ The prototype is ready for demonstration when:
     Jira, and threat-detection intents.
 -   Frequently asked questions can be suggested without bypassing
     current retrieval or access checks.
--   The system does not leak restricted chunks through search, chat
-    history, cache, or citations.
+-   The system does not leak restricted chunks through search, response
+    citations, or caches; chat turns are not persisted.
 -   HR, CV, and success-fee examples use fictional data unless approved
     access exists.
 -   Jira writes require approval and are audited.

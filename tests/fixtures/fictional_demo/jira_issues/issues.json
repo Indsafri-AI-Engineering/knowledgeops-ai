@@ -1,0 +1,34 @@
+{
+  "issues": [
+    {
+      "key": "DEMO-101",
+      "project": "DEMO",
+      "issue_type": "Bug",
+      "summary": "Salesforce login error after multi-factor prompt",
+      "description": "Fictional report: one demo user sees a loop after the MFA prompt.",
+      "status": "Open",
+      "priority": "Medium",
+      "assignee_team": "IT Support"
+    },
+    {
+      "key": "DEMO-102",
+      "project": "DEMO",
+      "issue_type": "Task",
+      "summary": "Update internal troubleshooting guide",
+      "description": "Fictional task to review the Salesforce help steps.",
+      "status": "In Progress",
+      "priority": "Low",
+      "assignee_team": "IT Support"
+    },
+    {
+      "key": "DEMO-103",
+      "project": "DEMO",
+      "issue_type": "Bug",
+      "summary": "Knowledge search loses source citation",
+      "description": "Fictional report about a missing citation in a demo answer.",
+      "status": "Open",
+      "priority": "High",
+      "assignee_team": "AI Team"
+    }
+  ]
+}
