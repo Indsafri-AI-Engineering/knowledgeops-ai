@@ -98,7 +98,10 @@ export function JiraPanel({ user }: JiraPanelProps) {
     };
   }, [canWrite, projectKey]);
 
-  async function search(event?: FormEvent<HTMLFormElement>) {
+  async function search(
+    event?: FormEvent<HTMLFormElement>,
+    successMessage?: string,
+  ) {
     event?.preventDefault();
     setBusy(true);
     setError(null);
@@ -108,7 +111,10 @@ export function JiraPanel({ user }: JiraPanelProps) {
       setIssues(result.issues);
       setSelectedIssue(null);
       setTransitions([]);
-      setMessage(`${result.issues.length} Jira issue${result.issues.length === 1 ? "" : "s"} found.`);
+      setMessage(
+        successMessage
+          ?? `${result.issues.length} Jira issue${result.issues.length === 1 ? "" : "s"} found.`,
+      );
     } catch (requestError) {
       setError(errorText(requestError, "Jira search failed."));
     } finally {
@@ -139,8 +145,13 @@ export function JiraPanel({ user }: JiraPanelProps) {
       setNewSummary("");
       setNewDescription("");
       setNewPriorityName("");
-      setMessage(`Created ${created.key} in Jira.`);
-      await search();
+      const creationMessage =
+        created.notification_status === "sent"
+          ? `Created ${created.key} in Jira and notified the configured n8n workflow.`
+          : created.notification_status === "failed"
+            ? `Created ${created.key} in Jira, but the n8n notification failed.`
+            : `Created ${created.key} in Jira. No n8n Jira webhook is configured.`;
+      await search(undefined, creationMessage);
     } catch (requestError) {
       setError(errorText(requestError, "Jira could not create the issue."));
     } finally {

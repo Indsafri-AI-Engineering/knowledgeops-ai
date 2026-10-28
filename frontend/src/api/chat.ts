@@ -14,13 +14,6 @@ export type SourceCitation = {
   environment: string | null;
 };
 
-export type ConversationTurn = {
-  question: string;
-  answer: string;
-  intent: string;
-  sources: SourceCitation[];
-};
-
 export type FAQSuggestion = {
   faq_id: string;
   question: string;
@@ -61,6 +54,7 @@ export type ThreatScanResult = {
 };
 
 export type ChatResponse = {
+  question: string;
   answer: string;
   intent: string;
   route_category: "knowledge" | "workflow" | "analytical" | "unsupported";
@@ -78,8 +72,6 @@ export type ChatResponse = {
   sources: SourceCitation[];
   needs_clarification: boolean;
   action_proposal: null;
-  conversation_id: string;
-  history: ConversationTurn[];
 };
 
 const API_BASE_URL = (
@@ -89,7 +81,6 @@ const API_BASE_URL = (
 export async function askQuestion(
   question: string,
   retrievalMode: RetrievalMode,
-  conversationId: string | null,
 ): Promise<ChatResponse> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/chat`, {
     method: "POST",
@@ -97,31 +88,12 @@ export async function askQuestion(
     body: JSON.stringify({
       question,
       retrieval_mode: retrievalMode,
-      conversation_id: conversationId,
     }),
   });
   if (!response.ok) {
     throw new ApiError(`Question request failed (${response.status}).`, response.status);
   }
   return (await response.json()) as ChatResponse;
-}
-
-export async function getConversation(conversationId: string): Promise<{
-  conversation_id: string;
-  owner_id: string;
-  turns: ConversationTurn[];
-}> {
-  const response = await apiFetch(
-    `${API_BASE_URL}/api/v1/conversations/${encodeURIComponent(conversationId)}`,
-  );
-  if (!response.ok) {
-    throw new ApiError(`Conversation request failed (${response.status}).`, response.status);
-  }
-  return (await response.json()) as {
-    conversation_id: string;
-    owner_id: string;
-    turns: ConversationTurn[];
-  };
 }
 
 export async function getFaqSuggestions(): Promise<FAQSuggestion[]> {

@@ -24,6 +24,7 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chatSessionKey, setChatSessionKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -81,6 +82,7 @@ export function App() {
   }
 
   async function handleLogout() {
+    setChatSessionKey((key) => key + 1);
     setBusy(true);
     setError(null);
     try {
@@ -197,7 +199,7 @@ export function App() {
                     FICTIONAL DEMO: Built-in Northstar Works knowledge is synthetic and is not real company policy.
                   </p>
                 </section>
-                <ChatPanel key={user.user_id} userId={user.user_id} />
+                <ChatPanel key={chatSessionKey} />
                 {user.capabilities.includes("knowledge:manage") && <KnowledgeDocumentsPanel />}
               </>
             )}

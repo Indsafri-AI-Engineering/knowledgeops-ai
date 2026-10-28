@@ -97,7 +97,12 @@ export function createJiraIssue(input: {
   description: string;
   priority_name: string | null;
   confirmed: true;
-}): Promise<{ id: string; key: string; url: string }> {
+}): Promise<{
+  id: string;
+  key: string;
+  url: string;
+  notification_status: "sent" | "not_configured" | "failed";
+}> {
   return jiraRequest("/issues", jsonRequest("POST", input));
 }
 
