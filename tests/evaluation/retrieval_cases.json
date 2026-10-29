@@ -1,22 +1,46 @@
 [
   {
+    "case_id": "annual-leave-entitlement",
     "question": "How many annual leave days do employees receive?",
     "allowed_scopes": ["general"],
-    "expected_document_id": "demo-hr-annual-leave"
+    "expected_document_ids": ["demo-hr-annual-leave"],
+    "reference_answer": "Full-time employees receive 20 working days of annual leave per calendar year. New employees receive a prorated allowance based on their start date.",
+    "supporting_facts": [
+      "Full-time employees receive 20 working days of annual leave per calendar year.",
+      "New employees receive a prorated allowance based on their start date."
+    ]
   },
   {
+    "case_id": "salesforce-mfa-troubleshooting",
     "question": "Salesforce login error troubleshooting multi-factor authentication",
     "allowed_scopes": ["general", "it"],
-    "expected_document_id": "demo-it-salesforce-login"
+    "expected_document_ids": ["demo-it-salesforce-login"],
+    "reference_answer": "Use the configured company authenticator for the expected sign-in request. Never share a verification code. If the expected prompt does not appear, contact the fictional IT Service Desk and do not bypass multi-factor authentication.",
+    "supporting_facts": [
+      "Use the configured company authenticator for the expected sign-in request.",
+      "Never share a verification code with support staff.",
+      "If the expected prompt does not appear, contact the fictional IT Service Desk; do not bypass multi-factor authentication."
+    ]
   },
   {
+    "case_id": "recruitment-success-fee",
     "question": "What success fee applies under the recruitment agreement?",
     "allowed_scopes": ["recruitment"],
-    "expected_document_id": "demo-recruitment-agreement"
+    "expected_document_ids": ["demo-recruitment-agreement"],
+    "reference_answer": "The fictional agreement sets a success fee of 12% of the candidate's first-year base salary for a completed placement. For a salary of 80,000 credits, the illustrative fee is 9,600 credits.",
+    "supporting_facts": [
+      "The success fee is 12% of the candidate's first-year base salary for a completed placement.",
+      "For an annual salary of 80,000 credits, the illustrative fee is 9,600 credits."
+    ]
   },
   {
+    "case_id": "customer-data-handling",
     "question": "What customer data should not be pasted into unapproved AI tools?",
     "allowed_scopes": ["general"],
-    "expected_document_id": "demo-it-customer-data"
+    "expected_document_ids": ["demo-it-customer-data"],
+    "reference_answer": "Do not paste customer records, credentials, or access tokens into public services or unapproved AI tools.",
+    "supporting_facts": [
+      "Do not paste customer records, credentials, or access tokens into public services or unapproved AI tools."
+    ]
   }
 ]

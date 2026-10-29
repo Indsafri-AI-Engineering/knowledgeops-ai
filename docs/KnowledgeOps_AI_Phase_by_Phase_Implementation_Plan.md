@@ -31,7 +31,9 @@ Jira and n8n integration, threat detection, evaluation, and security.
 9.  **Phase 9 --- Evaluation and Quality Metrics:** Evaluate
     faithfulness, relevancy, contextual precision, contextual recall,
     latency, and errors.
-10. **Phase 10 --- Hardening, Documentation, and Demonstration:**
+10. **Phase 10 --- Moderation and Guardrails:** Apply deterministic
+    safety checks to user input, retrieved content, and generated answers.
+11. **Phase 11 --- Hardening, Documentation, and Demonstration:**
     Complete security checks, testing, documentation, and the end-to-end
     demonstration.
 
@@ -581,17 +583,104 @@ behaviour.
 
 ## Current Phase 9 progress
 
-The deterministic synthetic evaluation runner reports retrieval MRR@3 and
-expected-source hit rate for vector, keyword, and hybrid search; routing
-accuracy; restricted-scope denial/leak checks; and threat-detection metrics.
-The evaluation inputs are versioned under `tests/evaluation/`. These checks
-are a smoke baseline, not a production quality claim. Answer faithfulness,
-answer relevancy, citation precision, latency/error distributions, and an
-approved go/no-go threshold remain to be added.
+Run `python -m backend.app.evaluation.run_demo_evaluation` from the repository
+root to evaluate the versioned synthetic question set and save a JSON report to
+`data/evaluation/phase9_latest.json`. The report compares local vector
+(TF-IDF), BM25 keyword, and hybrid retrieval, then evaluates the configured
+answer generator for faithfulness, reference-answer relevancy, contextual
+precision, contextual recall, latency, and errors. It also includes routing,
+restricted-scope denial/leak, and threat-detection metrics. Use
+`--generation-backends extractive,ollama` to compare generators; hosted
+generation remains subject to `AI_DATA_CLASS=synthetic`.
+
+Faithfulness and answer relevancy use lexical overlap with retrieved context
+and reference answers; contextual recall uses overlap with annotated supporting
+facts. These reproducible proxies can flag likely unsupported sentences but do
+not establish semantic entailment. The fixtures are synthetic and small, so
+scores are a regression baseline, not a production quality claim or approved
+go/no-go threshold. Results include per-case metric values, retrieved document
+IDs, unsupported sentence text, request latency, and error types. The report
+path is ignored by Git; copy or rename it before another run to retain a
+comparison.
 
 ------------------------------------------------------------------------
 
-# Phase 10 --- Hardening, Documentation, and Demonstration
+# Phase 10 --- Moderation and Guardrails
+
+## Objective
+
+Apply a local, deterministic safety layer around the existing permission-aware
+chat and RAG pipeline. Moderation supplements, and never replaces,
+authentication, authorization, scope-filtered retrieval, or approved workflow
+controls.
+
+## Implementation tasks
+
+1. Normalize and classify chat input; block explicit credential disclosure,
+   access-control bypass, instruction override, targeted abuse, and narrowly
+   defined harmful requests.
+2. Ask for clarification on ambiguous or unsupported requests without
+   invoking retrieval or generation.
+3. Inspect retrieved passages and remove suspicious instruction sentences
+   before generation while preserving safe evidence and citation metadata.
+4. Check generated answers for credential-like values, invalid citations,
+   unsupported numeric claims, and low lexical evidence support. Withhold an
+   answer that fails these checks.
+5. Record stage, outcome, category, severity, rule, policy version, and
+   non-content metadata in the existing audit log. Do not write raw prompts,
+   retrieved passages, answers, or detected secret values to moderation audit
+   events.
+6. Keep chat-created external actions disabled; require the existing approved
+   workflow and authorization paths for side effects, and audit attempted
+   unsupported actions.
+7. Run the synthetic guardrail cases together with the Phase 9 evaluation and
+   preserve JSON reports for comparison.
+8. Document policy scope, refusal behavior, configuration, and known
+   limitations.
+
+## Exit criteria
+
+- Moderation is applied on the real authenticated chat path at input,
+  retrieval, and output stages.
+- Unauthorized retrieval remains denied before search, regardless of
+  moderation classification.
+- Unsafe answers are withheld and their sources are not returned.
+- Chat action requests cannot invoke external side effects.
+- Audit events contain policy metadata but not raw user or source content.
+- Synthetic evaluations report expected outcomes, authorization denials, and
+  side-effect prevention reproducibly.
+
+## Current Phase 10 progress
+
+The local rules and synthetic evaluation dataset are implemented in
+`backend/app/moderation/` and `tests/evaluation/guardrail_cases.json`.
+Run the combined evaluation with
+`python -m backend.app.evaluation.run_demo_evaluation --generation-backends extractive --output data/evaluation/phase10_latest.json`;
+the report includes stage-level binary metrics, per-case outcomes,
+authorization checks, and side-effect prevention. In the latest synthetic
+run, all 19 guardrail cases passed. Input precision/recall was 1.00 across
+10 binary cases, retrieval precision/recall was 1.00 across 2 cases, and
+output precision/recall was 1.00 across 3 cases. The single authorization
+check was denied as expected, and the single action case had no side effect.
+Two clarification cases are reported separately from binary classification.
+These small fixture counts are regression evidence only, not production
+performance claims.
+
+`MODERATION_MAX_INPUT_CHARS` is bounded to 1–2000 characters (the API schema
+also caps chat input at 2000), and
+`MODERATION_MIN_ANSWER_SUPPORT` is a lexical threshold from 0 to 1. Defaults
+are shown in `.env.example`.
+
+The rules are deliberately local and deterministic; they are not a semantic
+moderation model. They can miss paraphrases or flag benign language.
+Lexical answer support is only a heuristic, not proof of entailment.
+The evaluation uses fictional synthetic fixtures and is a regression check,
+not a production safety certification. The standalone document-ingestion
+threat scanner remains separate.
+
+------------------------------------------------------------------------
+
+# Phase 11 --- Hardening, Documentation, and Demonstration
 
 ## Objective
 
@@ -664,7 +753,8 @@ the next.
 -   Phase 7 adds controlled operational integrations.
 -   Phase 8 develops threat and fraud detection.
 -   Phase 9 evaluates system quality.
--   Phase 10 prepares the project for a controlled demonstration.
+-   Phase 10 adds moderation and guardrails around the chat pipeline.
+-   Phase 11 prepares the project for a controlled demonstration.
 
 **Immediate starting point: Phase 1 --- Project Foundation and JSON
 Storage.**

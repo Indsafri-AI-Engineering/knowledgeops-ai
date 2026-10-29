@@ -117,16 +117,79 @@ commands from the repository root:
 python -m pytest -q
 ```
 
-The Phase 9 synthetic smoke report can be run with:
+The combined Phase 9 evaluation and Phase 10 guardrail report can be run with:
 
 ```powershell
 python -m backend.app.evaluation.run_demo_evaluation
 ```
 
-It reports retrieval MRR@3 and expected-source hit rate, routing accuracy,
-restricted-scope denials/leaks, and synthetic threat-detection metrics. These
-are repeatable fixture results, not production quality claims; answer
-faithfulness/relevancy and latency/error evaluation remain future work.
+The runner reports retrieval MRR@3 and expected-source hit rate, answer
+faithfulness and relevancy, contextual precision and recall, latency and error
+rates, routing accuracy, restricted-scope denials/leaks, and synthetic
+threat-detection metrics. It compares vector, keyword, and hybrid retrieval
+using the local synthetic fixture corpus. To compare generation configurations:
+
+```powershell
+python -m backend.app.evaluation.run_demo_evaluation --generation-backends extractive,ollama
+```
+
+The configured backend is evaluated by default. Hosted backends remain subject
+to the existing synthetic-data guard and require `AI_DATA_CLASS=synthetic`;
+the runner does not change that setting. Each run is written to
+`data/evaluation/phase9_latest.json`; preserve or rename a report before the
+next run if you want to compare runs. Metrics are deterministic lexical proxies
+for answer support/relevance and context recall, not semantic judgments or a
+production quality claim. Review per-case unsupported sentences and errors,
+and compare only runs using the same dataset and evaluation method.
+
+## Phase 10: Moderation and Guardrails
+
+The authenticated chat route applies local deterministic checks before
+orchestration, to retrieved passages before generation, and to generated
+answers before returning them. Explicit requests to disclose credentials,
+bypass permissions, override system instructions, targeted abuse, and a
+narrowly defined set of harmful requests are blocked. Ambiguous or
+unsupported requests receive a clarification instead of entering retrieval.
+Suspicious instruction sentences in retrieved documents are removed while
+safe content and citations are retained. Answers with credential-shaped
+values, invalid citations, unsupported numeric claims, or insufficient
+lexical evidence are withheld with a safe response.
+
+Moderation supplements the existing authorization and scoped-retrieval
+controls; it does not grant access or execute chat-requested Jira/threat
+actions. The audit log records the moderation stage, decision category,
+severity, rule and policy version, plus non-content metadata. It does not
+record raw prompts, retrieved passages, answers, or detected secret values in
+moderation events. Review these events through the existing audit access
+controls; no separate moderation dashboard is included.
+
+The synthetic guardrail dataset includes benign and defensive prompts,
+blocked prompts, injection text, secret and citation output checks,
+authorization denial, and action-prevention cases. The report presents
+per-case results and stage-level binary metrics, along with authorization and
+side-effect-prevention outcomes. Configuration defaults are
+`MODERATION_MAX_INPUT_CHARS=2000` and
+`MODERATION_MIN_ANSWER_SUPPORT=0.35`; the maximum input setting must be from
+1 to 2000, and the support threshold from 0 to 1.
+
+To preserve a separate Phase 10 report instead of overwriting the Phase 9
+default report:
+
+```powershell
+python -m backend.app.evaluation.run_demo_evaluation --generation-backends extractive --output data\evaluation\phase10_latest.json
+```
+
+The latest recorded synthetic run passed 19 of 19 guardrail cases. Input,
+retrieval, and output binary precision/recall were each 1.00 on their
+respective small fixture sets; the report also records the expected
+authorization denial and chat-action side-effect prevention. This is a
+reproducible regression result, not a production safety guarantee.
+
+These rules are intentionally narrow and deterministic. They may miss
+paraphrased attacks or produce false positives, and lexical support does not
+prove that a statement is semantically entailed. The small synthetic
+evaluation is a regression baseline, not a production safety certification.
+The existing document-ingestion threat scanner remains a separate control.
 
 The `.env.example` file documents configuration names and can be copied to
 `.env`. Mock connector routes are enabled only by isolated automated tests.

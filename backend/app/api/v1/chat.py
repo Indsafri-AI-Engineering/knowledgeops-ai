@@ -7,6 +7,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend.app.core.auth import get_current_user
 from backend.app.core.demo_auth import DemoUser
 from backend.app.core.permissions import require_capability, user_scopes
+from backend.app.moderation.guardrails import (
+    AMBIGUOUS_MESSAGE,
+    BLOCKED_INPUT_MESSAGE,
+    ModerationDecision,
+    OUT_OF_SCOPE_MESSAGE,
+    UNSAFE_ANSWER_MESSAGE,
+    moderate_input,
+    moderate_output,
+    record_moderation_event,
+)
 from backend.app.knowledge.faqs import suggest_faqs
 from backend.app.knowledge.index import get_knowledge_index
 from backend.app.knowledge.retrieval import KnowledgeIndex, RetrievalMode
@@ -57,7 +67,54 @@ def chat(
     index: Annotated[KnowledgeIndex, Depends(get_knowledge_index)],
 ) -> ChatResponse:
     require_capability(user, "chat:ask", request)
+    input_decision = moderate_input(payload.question)
+    record_moderation_event(
+        input_decision,
+        request=request,
+        actor_id=user.user_id,
+        metadata={"input_length": len(payload.question)},
+    )
+    if input_decision.outcome != "allowed":
+        answer = (
+            BLOCKED_INPUT_MESSAGE
+            if input_decision.outcome == "blocked"
+            else (
+                AMBIGUOUS_MESSAGE
+                if input_decision.category == "ambiguous"
+                else OUT_OF_SCOPE_MESSAGE
+            )
+        )
+        return ChatResponse(
+            question=payload.question,
+            answer=answer,
+            intent="knowledge.question",
+            route_category="unsupported",
+            route_component="unsupported",
+            workflow_status="planned",
+            retrieval_mode=payload.retrieval_mode,
+            sources=[],
+            needs_clarification=input_decision.outcome
+            == "clarification_required",
+        )
+
     route = route_question(payload.question)
+    if route.category == "workflow" and route.component in {
+        "jira",
+        "threat_analysis",
+    } and route.needs_clarification:
+        record_moderation_event(
+            ModerationDecision(
+                stage="action",
+                outcome="flagged",
+                category="unapproved_action",
+                severity="low",
+                rule_id="chat-action-not-executed",
+                reason_code="approved_workflow_required",
+            ),
+            request=request,
+            actor_id=user.user_id,
+            metadata={"target": route.component},
+        )
     orchestration = orchestrate_request(
         payload.question,
         route,
@@ -70,6 +127,21 @@ def chat(
     workflow_status = orchestration.workflow_status
     sources = orchestration.sources
     needs_clarification = orchestration.needs_clarification
+
+    output_decision = moderate_output(
+        answer,
+        source_count=len(sources),
+    )
+    if output_decision.outcome != "allowed":
+        record_moderation_event(
+            output_decision,
+            request=request,
+            actor_id=user.user_id,
+            metadata={"source_count": len(sources)},
+        )
+        answer = UNSAFE_ANSWER_MESSAGE
+        sources = []
+        needs_clarification = True
 
     if orchestration.audit_action is not None:
         AuditLog().record(
@@ -93,6 +165,7 @@ def chat(
             "route_component": route.component,
             "source_count": len(sources),
             "workflow_status": workflow_status,
+            "moderation_outcome": output_decision.outcome,
         },
     )
     return ChatResponse(

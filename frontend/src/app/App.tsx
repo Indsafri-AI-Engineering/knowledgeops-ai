@@ -115,7 +115,12 @@ export function App() {
               className={activeView === "knowledge" ? "nav-item active" : "nav-item"}
               onClick={() => setActiveView("knowledge")}
             >
-              <span className="nav-icon" aria-hidden="true">⌕</span>
+              <span className="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 5.75A2.75 2.75 0 0 1 7.75 3h8.5A2.75 2.75 0 0 1 19 5.75v8.5A2.75 2.75 0 0 1 16.25 17H12l-4.5 4v-4h-.25A2.75 2.75 0 0 1 5 14.25v-8.5Z" />
+                  <path d="M9 8h6M9 12h4" />
+                </svg>
+              </span>
               Knowledge assistant
             </button>
             {(user.capabilities.includes("jira:read")
@@ -124,7 +129,11 @@ export function App() {
                 className={activeView === "jira" ? "nav-item active" : "nav-item"}
                 onClick={() => setActiveView("jira")}
               >
-                <span className="nav-icon" aria-hidden="true">▤</span>
+                <span className="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h4" />
+                  </svg>
+                </span>
                 Jira workspace
               </button>
             )}
@@ -136,7 +145,12 @@ export function App() {
                 className={activeView === "threat-scans" ? "nav-item active" : "nav-item"}
                 onClick={() => setActiveView("threat-scans")}
               >
-                <span className="nav-icon" aria-hidden="true">⌁</span>
+                <span className="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M12 3 19 6v5c0 4.5-2.8 7.8-7 10-4.2-2.2-7-5.5-7-10V6l7-3Z" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                </span>
                 Threat analysis
               </button>
             )}
@@ -144,7 +158,11 @@ export function App() {
               className={activeView === "system" ? "nav-item active" : "nav-item"}
               onClick={() => setActiveView("system")}
             >
-              <span className="nav-icon" aria-hidden="true">◉</span>
+              <span className="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M4 13h4l2.2-6 3.6 10 2.2-5H20" />
+                </svg>
+              </span>
               System status
             </button>
           </nav>
@@ -193,10 +211,10 @@ export function App() {
               <>
                 <section className="page-intro">
                   <p className="eyebrow">KNOWLEDGE WORKSPACE</p>
-                  <h1>Good day, {user.display_name.split(" ")[0]}</h1>
-                  <p>Ask questions across the documents and knowledge sources you’re authorized to access.</p>
+                  <h1>Welcome back, {user.display_name.split(" ")[0]}</h1>
+                  <p>Your team’s knowledge, ready when you need it.</p>
                   <p className="demo-corpus-notice" role="note">
-                    FICTIONAL DEMO: Built-in Northstar Works knowledge is synthetic and is not real company policy.
+                    Demo workspace <span aria-hidden="true">·</span> Built-in Northstar Works content is fictional.
                   </p>
                 </section>
                 <ChatPanel key={chatSessionKey} />

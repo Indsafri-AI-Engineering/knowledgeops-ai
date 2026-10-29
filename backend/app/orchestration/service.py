@@ -14,6 +14,13 @@ from backend.app.core.permissions import require_capability, user_scopes
 from backend.app.knowledge.generation import generate_grounded_answer
 from backend.app.knowledge.ingestion import KnowledgeChunk
 from backend.app.knowledge.retrieval import KnowledgeIndex, RetrievalMode, RetrievedChunk
+from backend.app.moderation.guardrails import (
+    ModerationDecision,
+    UNSAFE_ANSWER_MESSAGE,
+    inspect_retrieved_chunks,
+    moderate_output,
+    record_moderation_event,
+)
 from backend.app.orchestration.routing import RouteDecision
 
 SALARY_PATTERN = re.compile(
@@ -263,13 +270,43 @@ def orchestrate_request(
         set(user_scopes(user)),
         mode=retrieval_mode,
     )
+    results, flagged_rules = inspect_retrieved_chunks(results)
+    if flagged_rules:
+        record_moderation_event(
+            ModerationDecision(
+                stage="retrieval",
+                outcome="flagged",
+                category="document_instruction_injection",
+                severity="high",
+                rule_id=",".join(flagged_rules),
+                reason_code="suspicious_instruction_sentence_removed",
+            ),
+            request=request,
+            actor_id=user.user_id,
+            metadata={"matched_rule_count": len(flagged_rules)},
+        )
+    answer = generate_grounded_answer(
+        results,
+        question,
+        analytical=route.category == "analytical",
+    )
+    output_decision = moderate_output(
+        answer,
+        retrieved_contexts=[result.chunk.text for result in results],
+        source_count=len(results),
+    )
+    if output_decision.outcome != "allowed":
+        record_moderation_event(
+            output_decision,
+            request=request,
+            actor_id=user.user_id,
+            metadata={"source_count": len(results)},
+        )
+        answer = UNSAFE_ANSWER_MESSAGE
+        results = []
     return OrchestrationResult(
-        answer=generate_grounded_answer(
-            results,
-            question,
-            analytical=route.category == "analytical",
-        ),
+        answer=answer,
         workflow_status="available",
         sources=_retrieval_citations(results),
-        needs_clarification=not results,
+        needs_clarification=not results or output_decision.outcome != "allowed",
     )

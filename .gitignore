@@ -14,6 +14,7 @@ venv/
 .coverage
 htmlcov/
 data/runtime/
+data/evaluation/
 
 # Frontend
 node_modules/

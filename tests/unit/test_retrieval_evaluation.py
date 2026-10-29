@@ -25,7 +25,7 @@ def test_retrieval_benchmark_mrr_at_three(mode: str) -> None:
             (
                 position
                 for position, result in enumerate(results, start=1)
-                if result.chunk.document_id == case["expected_document_id"]
+                if result.chunk.document_id in case["expected_document_ids"]
             ),
             None,
         )
