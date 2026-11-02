@@ -80,8 +80,8 @@ npm run dev
 
 The SPA uses the OIDC authorization-code flow with PKCE and stores OIDC state
 in browser session storage. The imported `knowledgeops-web` client allows the
-common local Vite ports `http://localhost:5173/*` and
-`http://localhost:5174/*`. The API uses bearer access tokens.
+common local Vite ports 5173 and 5174 on both `localhost` and `127.0.0.1`.
+The API uses bearer access tokens.
 
 ## Sign-in troubleshooting
 

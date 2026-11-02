@@ -16,6 +16,7 @@ dependencies = [
     "langchain-mistralai>=0.2,<2",
     "langchain-ollama>=0.3,<1",
     "langchain-qdrant>=0.2,<1",
+    "pymongo>=4.13,<5",
     "PyJWT[crypto]>=2.9,<3",
     "defusedxml>=0.7.1,<1",
     "pypdf>=5,<7",

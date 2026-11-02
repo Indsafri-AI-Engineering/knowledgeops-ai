@@ -5,6 +5,7 @@ import { SystemStatusPanel } from "../features/system-status/SystemStatusPanel";
 import { KnowledgeDocumentsPanel } from "../features/knowledge/KnowledgeDocumentsPanel";
 import { JiraPanel } from "../features/jira/JiraPanel";
 import { ThreatScanPanel } from "../features/threat-scans/ThreatScanPanel";
+import type { VirusTotalDocumentSummary } from "../api/knowledge";
 import type { AuthenticatedUser } from "../types/auth";
 import {
   completeOidcCallback,
@@ -25,6 +26,8 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chatSessionKey, setChatSessionKey] = useState(0);
+  const [lastDocumentUrlScan, setLastDocumentUrlScan] =
+    useState<VirusTotalDocumentSummary | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -218,13 +221,16 @@ export function App() {
                   </p>
                 </section>
                 <ChatPanel key={chatSessionKey} />
-                {user.capabilities.includes("knowledge:manage") && <KnowledgeDocumentsPanel />}
+                {user.capabilities.includes("knowledge:manage") && (
+                  <KnowledgeDocumentsPanel onUrlScan={setLastDocumentUrlScan} />
+                )}
               </>
             )}
             {activeView === "jira" && <JiraPanel user={user} />}
             {activeView === "threat-scans" && (
               <ThreatScanPanel
                 canScan={user.capabilities.includes("threat_scans:scan")}
+                lastDocumentUrlScan={lastDocumentUrlScan}
                 canManageAlerts={
                   user.capabilities.includes("security_alerts:manage")
                   || user.capabilities.includes("threat_scans:scan")

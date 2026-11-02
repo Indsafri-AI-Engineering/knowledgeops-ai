@@ -125,6 +125,21 @@ h2 {
   background: #e5f1ff;
 }
 
+.status-stored {
+  color: #17613b;
+  background: #e3f5e9;
+}
+
+.status-duplicate {
+  color: #714b00;
+  background: #fff3ce;
+}
+
+.status-failed {
+  color: #8a2d19;
+  background: #ffebe5;
+}
+
 .status-mock {
   color: #714b00;
   background: #fff3ce;
@@ -138,6 +153,569 @@ h2 {
 .status-external {
   color: #8a2d19;
   background: #ffebe5;
+}
+
+.scanner-provider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 14px 16px;
+  border: 1px solid #293d59;
+  border-radius: 12px;
+  color: #e8effa;
+  background: #111d2e;
+}
+
+.scanner-provider-icon,
+.scanner-pulse {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  color: #8bb9ff;
+  background: #1b3454;
+  font-size: 1.15rem;
+}
+
+.scanner-provider > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.scanner-provider p {
+  margin: 3px 0 0;
+  color: #a7b6c9;
+  font-size: 0.83rem;
+  text-transform: capitalize;
+}
+
+.scanner-status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #8492a5;
+}
+
+.scanner-status-dot.is-connected {
+  background: #42cf87;
+  box-shadow: 0 0 0 4px rgb(66 207 135 / 14%);
+}
+
+.scanner-status-dot.is-pending {
+  background: #f0b74f;
+  box-shadow: 0 0 0 4px rgb(240 183 79 / 14%);
+}
+
+.scanner-status-dot.is-unavailable {
+  background: #8692a2;
+}
+
+.scanner-dropzone {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 28px 18px;
+  border: 1px dashed #8297b2;
+  border-radius: 14px;
+  color: #52657b;
+  background: #f7faff;
+  text-align: center;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.scanner-dropzone.is-dragging {
+  border-color: #4285df;
+  background: #eaf3ff;
+}
+
+.scanner-dropzone > strong {
+  color: #20344d;
+}
+
+.scanner-dropzone > span:not(.scanner-upload-icon) {
+  font-size: 0.9rem;
+}
+
+.scanner-dropzone small {
+  color: #718198;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.scanner-upload-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid #d5e4f8;
+  border-radius: 13px;
+  color: #2c69bd;
+  background: #edf5ff;
+  font-size: 1.55rem;
+  font-weight: 500;
+}
+
+.scanner-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.scanner-queue {
+  padding: 14px;
+  border: 1px solid #dce5ef;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.scanner-queue-heading,
+.scanner-queue li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scanner-queue-heading > span,
+.scanner-queue li > span:last-child {
+  color: #75859a;
+  font-size: 0.82rem;
+}
+
+.scanner-queue ul {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scanner-queue li {
+  padding-top: 8px;
+  border-top: 1px solid #e8edf3;
+}
+
+.scanner-file-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #30445e;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scanner-queue > p {
+  margin: 8px 0 0;
+  color: #77869a;
+  font-size: 0.86rem;
+}
+
+.scanner-progress {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #263d5a;
+  border-radius: 14px;
+  color: #e8effa;
+  background: #101b2b;
+}
+
+.scanner-progress-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scanner-progress-heading > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.scanner-progress-heading p,
+.scanner-progress > p {
+  margin: 4px 0 0;
+  color: #a5b4c8;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.scanner-pulse {
+  animation: scanner-pulse 1.6s ease-in-out infinite;
+  color: #69a6ff;
+  font-size: 1.35rem;
+}
+
+.scanner-indeterminate-label {
+  color: #a9c8f3;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.scanner-progress-track {
+  position: relative;
+  height: 7px;
+  overflow: hidden;
+  margin: 18px 0 12px;
+  border-radius: 99px;
+  background: #26364c;
+}
+
+.scanner-progress-track > span {
+  position: absolute;
+  inset: 0 auto 0 -35%;
+  width: 35%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3677d5, #60b5ff, #3677d5);
+  box-shadow: 0 0 18px rgb(74 155 255 / 55%);
+}
+
+.scanner-progress-track.is-indeterminate > span {
+  animation: scanner-progress 1.5s ease-in-out infinite;
+}
+
+.scanner-results {
+  margin-top: 24px;
+  padding: clamp(16px, 3vw, 24px);
+  border: 1px solid #22354d;
+  border-radius: 16px;
+  color: #e8effa;
+  background: #101a29;
+  box-shadow: 0 14px 32px rgb(14 28 47 / 14%);
+}
+
+.scanner-results-heading,
+.scanner-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.scanner-results-heading h3 {
+  margin-bottom: 0;
+  color: #f3f6fb;
+}
+
+.scanner-results .eyebrow {
+  color: #91a8c6;
+}
+
+.scanner-report-count {
+  padding: 5px 10px;
+  border-radius: 99px;
+  color: #b7c9e2;
+  background: #1b2b41;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.scanner-report {
+  margin-top: 16px;
+  padding: clamp(14px, 3vw, 20px);
+  border: 1px solid #2a3c53;
+  border-radius: 12px;
+  background: #142134;
+}
+
+.scanner-report-blocked {
+  border-color: #793b3e;
+}
+
+.scanner-report-failed {
+  border-color: #624e38;
+}
+
+.scanner-report-file {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.scanner-report-file > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.scanner-report-file > div strong {
+  overflow-wrap: anywhere;
+}
+
+.scanner-report-file > div span {
+  color: #9aabc0;
+  font-size: 0.78rem;
+}
+
+.scanner-report-file-icon {
+  display: grid;
+  width: 34px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #354c69;
+  border-radius: 7px;
+  color: #9fc5fa;
+  background: #1c304a;
+}
+
+.scanner-verdict {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: 99px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.scanner-verdict-clean,
+.scanner-verdict-stored {
+  border-color: #285d48;
+  color: #83e0af;
+  background: #16392d;
+}
+
+.scanner-verdict-danger,
+.scanner-verdict-blocked {
+  border-color: #783e46;
+  color: #ff9a9d;
+  background: #42242c;
+}
+
+.scanner-verdict-warning,
+.scanner-verdict-duplicate {
+  border-color: #755c31;
+  color: #f5ca75;
+  background: #3d321f;
+}
+
+.scanner-verdict-unknown,
+.scanner-verdict-failed {
+  border-color: #46556a;
+  color: #b7c3d2;
+  background: #263448;
+}
+
+.scanner-report-detail {
+  margin: 14px 0;
+  color: #b2bfd0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.scanner-analysis {
+  display: grid;
+  gap: 14px;
+}
+
+.scanner-threat-warning,
+.scanner-overall {
+  display: grid;
+  gap: 4px;
+  padding: 13px 15px;
+  border: 1px solid #315943;
+  border-radius: 9px;
+  color: #c4f1d7;
+  background: #163327;
+  line-height: 1.45;
+}
+
+.scanner-threat-warning {
+  border-color: #843e47;
+  color: #ffd9da;
+  background: #42232b;
+}
+
+.scanner-overall-warning {
+  border-color: #755c31;
+  color: #f7dda4;
+  background: #3b311f;
+}
+
+.scanner-overall-unknown {
+  border-color: #47576d;
+  color: #d3deeb;
+  background: #253348;
+}
+
+.scanner-overall span,
+.scanner-threat-warning span {
+  font-size: 0.84rem;
+}
+
+.scanner-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.scanner-metric {
+  display: grid;
+  min-height: 72px;
+  align-content: center;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid #2d4058;
+  border-radius: 9px;
+  background: #19283b;
+}
+
+.scanner-metric strong {
+  color: #e7eef9;
+  font-size: 1.28rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scanner-metric span {
+  color: #a7b6c9;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.scanner-metric-danger strong {
+  color: #ff969a;
+}
+
+.scanner-metric-warning strong {
+  color: #f3c76e;
+}
+
+.scanner-metric-clean strong {
+  color: #79dfa8;
+}
+
+.scanner-ingestion-state,
+.scanner-no-scan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  color: #d8e2ef;
+  font-size: 0.84rem;
+}
+
+.scanner-provider-state {
+  margin-left: auto;
+  color: #a7b6c9;
+  text-transform: capitalize;
+}
+
+.scanner-policy-note {
+  margin: -4px 0 0;
+  color: #ffb8bb;
+  font-size: 0.84rem;
+}
+
+.scanner-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #2b3d54;
+  border-radius: 9px;
+}
+
+.scanner-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #dce5f1;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.scanner-table th,
+.scanner-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #2b3d54;
+  vertical-align: middle;
+}
+
+.scanner-table th {
+  color: #aebdd0;
+  background: #19283b;
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.scanner-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.scanner-url-cell {
+  min-width: 190px;
+  overflow-wrap: anywhere;
+}
+
+.scanner-empty-table {
+  color: #a7b6c9;
+  text-align: center;
+}
+
+.scanner-alert-reference {
+  margin: 14px 0 0;
+  color: #e3c88f;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.scanner-alert-reference code {
+  color: #f2dfb6;
+}
+
+@keyframes scanner-progress {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(390%); }
+}
+
+@keyframes scanner-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(91 160 255 / 12%); }
+  50% { box-shadow: 0 0 0 8px rgb(91 160 255 / 0%); }
+}
+
+@media (max-width: 560px) {
+  .scanner-progress-heading {
+    align-items: flex-start;
+  }
+
+  .scanner-indeterminate-label {
+    display: none;
+  }
+
+  .scanner-report-header {
+    align-items: flex-start;
+  }
+
+  .scanner-table {
+    min-width: 640px;
+  }
+
+  .scanner-provider-state {
+    width: 100%;
+    margin-left: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanner-pulse,
+  .scanner-progress-track.is-indeterminate > span {
+    animation: none;
+  }
+
+  .scanner-progress-track.is-indeterminate > span {
+    inset-inline-start: 20%;
+    width: 60%;
+  }
 }
 
 .button {

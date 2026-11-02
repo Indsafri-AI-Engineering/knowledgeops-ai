@@ -42,10 +42,7 @@ def _parse_xml(content: bytes) -> Element:
         raise OfficeIngestionError("The Office document contains invalid XML.") from error
 
 
-def extract_docx_chunks(
-    docx_bytes: bytes,
-    metadata: KnowledgeDocumentMetadata,
-) -> list[KnowledgeChunk]:
+def extract_docx_sections(docx_bytes: bytes) -> list[tuple[str, list[str]]]:
     try:
         with ZipFile(BytesIO(docx_bytes)) as archive:
             _validate_archive(archive)
@@ -65,16 +62,17 @@ def extract_docx_chunks(
         )
         for paragraph in root.iter(f"{WORD_NAMESPACE}p")
     ]
-    return chunks_from_sections(
-        [("Document", paragraphs)],
-        metadata,
-    )
+    return [("Document", paragraphs)]
 
 
-def extract_xlsx_chunks(
-    xlsx_bytes: bytes,
+def extract_docx_chunks(
+    docx_bytes: bytes,
     metadata: KnowledgeDocumentMetadata,
 ) -> list[KnowledgeChunk]:
+    return chunks_from_sections(extract_docx_sections(docx_bytes), metadata)
+
+
+def extract_xlsx_sections(xlsx_bytes: bytes) -> list[tuple[str, list[str]]]:
     try:
         with ZipFile(BytesIO(xlsx_bytes)) as archive:
             _validate_archive(archive)
@@ -136,13 +134,17 @@ def extract_xlsx_chunks(
     except BadZipFile as error:
         raise OfficeIngestionError("The uploaded file is not a valid XLSX workbook.") from error
 
-    return chunks_from_sections(sections, metadata)
+    return sections
 
 
-def extract_pptx_chunks(
-    pptx_bytes: bytes,
+def extract_xlsx_chunks(
+    xlsx_bytes: bytes,
     metadata: KnowledgeDocumentMetadata,
 ) -> list[KnowledgeChunk]:
+    return chunks_from_sections(extract_xlsx_sections(xlsx_bytes), metadata)
+
+
+def extract_pptx_sections(pptx_bytes: bytes) -> list[tuple[str, list[str]]]:
     try:
         with ZipFile(BytesIO(pptx_bytes)) as archive:
             _validate_archive(archive)
@@ -178,4 +180,32 @@ def extract_pptx_chunks(
     except BadZipFile as error:
         raise OfficeIngestionError("The uploaded file is not a valid PPTX presentation.") from error
 
-    return chunks_from_sections(sections, metadata)
+    return sections
+
+
+def extract_pptx_chunks(
+    pptx_bytes: bytes,
+    metadata: KnowledgeDocumentMetadata,
+) -> list[KnowledgeChunk]:
+    return chunks_from_sections(extract_pptx_sections(pptx_bytes), metadata)
+
+
+def extract_office_link_targets(file_bytes: bytes) -> list[str]:
+    try:
+        with ZipFile(BytesIO(file_bytes)) as archive:
+            _validate_archive(archive)
+            targets: list[str] = []
+            for name in archive.namelist():
+                if not name.lower().endswith(".rels"):
+                    continue
+                root = _parse_xml(archive.read(name))
+                for relationship in root.iter():
+                    target = relationship.attrib.get("Target")
+                    mode = relationship.attrib.get("TargetMode", "")
+                    if target and mode.lower() == "external":
+                        targets.append(target)
+            return targets
+    except BadZipFile as error:
+        raise OfficeIngestionError(
+            "The uploaded file is not a valid Office document."
+        ) from error

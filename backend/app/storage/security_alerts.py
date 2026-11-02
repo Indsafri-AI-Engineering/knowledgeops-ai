@@ -42,6 +42,17 @@ class AlertIndicator(BaseModel):
     evidence_redacted: bool = True
 
 
+class VirusTotalAlertFinding(BaseModel):
+    provider: Literal["VirusTotal"] = "VirusTotal"
+    threat_category: Literal["Malicious URL", "Suspicious URL", "Unknown URL reputation"]
+    severity: AlertSeverity
+    detection_ratio: str | None = None
+    scan_status: str
+    redacted_url: str
+    document_event_reference: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class SecurityAlert(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -56,6 +67,7 @@ class SecurityAlert(BaseModel):
     actor_id: str | None = None
     artifact_sha256: str | None = None
     indicators: list[AlertIndicator] = Field(default_factory=list)
+    virustotal_findings: list[VirusTotalAlertFinding] = Field(default_factory=list)
     detector_version: str
     notification_status: NotificationStatus = "not_configured"
     response_workflow_status: ResponseWorkflowStatus = "not_requested"

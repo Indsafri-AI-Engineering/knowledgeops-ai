@@ -242,4 +242,13 @@ class KnowledgeDocumentStore:
 
 
 def get_knowledge_document_repository() -> KnowledgeDocumentRepository:
-    return KnowledgeDocumentStore()
+    backend = os.getenv("KNOWLEDGE_STORE_BACKEND", "mongodb").strip().lower()
+    if backend == "mongodb":
+        from backend.app.storage.mongodb_knowledge import (
+            MongoKnowledgeDocumentRepository,
+        )
+
+        return MongoKnowledgeDocumentRepository()
+    if backend == "local":
+        return KnowledgeDocumentStore()
+    raise ValueError(f"Unsupported KNOWLEDGE_STORE_BACKEND: {backend}")

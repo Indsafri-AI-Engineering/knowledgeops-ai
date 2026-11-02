@@ -149,6 +149,30 @@ def test_system_status_discloses_selected_hosted_providers(monkeypatch) -> None:
     assert components["Mistral"]["external_connection"] is True
 
 
+def test_system_status_reports_atlas_document_and_vector_storage(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    monkeypatch.setenv("KNOWLEDGE_STORE_BACKEND", "mongodb")
+    monkeypatch.setenv("MONGODB_URI", "mongodb+srv://configured.example")
+    monkeypatch.setenv("RAG_BACKEND", "atlas")
+    client = TestClient(app)
+    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-admin"})
+
+    response = client.get("/api/v1/system/status")
+
+    assert response.status_code == 200
+    components = {
+        component["name"]: component
+        for component in response.json()["components"]
+    }
+    assert components["Knowledge sources"]["mode"] == "external"
+    assert components["Storage"]["mode"] == "external"
+    assert components["Retrieval"]["mode"] == "external"
+    assert "access-scope prefilter" in components["Retrieval"]["description"]
+
+
 def test_demo_authentication_is_disabled_outside_development(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")

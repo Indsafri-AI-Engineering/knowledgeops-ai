@@ -43,20 +43,9 @@ def chunks_from_sections(
     sections: list[tuple[str, list[str]]],
     metadata: KnowledgeDocumentMetadata,
 ) -> list[KnowledgeChunk]:
+    normalized_sections = prepare_sections(sections)
     chunks: list[KnowledgeChunk] = []
-    extracted_characters = 0
-    for section, paragraphs in sections:
-        normalized = [
-            re.sub(r"\s+", " ", paragraph).strip()
-            for paragraph in paragraphs
-        ]
-        normalized = [paragraph for paragraph in normalized if paragraph]
-        extracted_characters += sum(map(len, normalized))
-        if extracted_characters > MAX_EXTRACTED_CHARACTERS:
-            raise TextIngestionError(
-                "Extracted document text is limited to "
-                f"{MAX_EXTRACTED_CHARACTERS} characters."
-            )
+    for section, normalized in normalized_sections:
         chunks.extend(
             KnowledgeChunk(
                 chunk_id=f"{metadata.document_id}:{len(chunks)}",
@@ -80,12 +69,35 @@ def chunks_from_sections(
     return chunks
 
 
-def extract_text_chunks(
+def prepare_sections(
+    sections: list[tuple[str, list[str]]],
+) -> list[tuple[str, list[str]]]:
+    prepared: list[tuple[str, list[str]]] = []
+    extracted_characters = 0
+    for section, paragraphs in sections:
+        normalized = [
+            re.sub(r"\s+", " ", paragraph).strip()
+            for paragraph in paragraphs
+        ]
+        normalized = [paragraph for paragraph in normalized if paragraph]
+        extracted_characters += sum(map(len, normalized))
+        if extracted_characters > MAX_EXTRACTED_CHARACTERS:
+            raise TextIngestionError(
+                "Extracted document text is limited to "
+                f"{MAX_EXTRACTED_CHARACTERS} characters."
+            )
+        if normalized:
+            prepared.append((section, normalized))
+    if not prepared:
+        raise TextIngestionError("No searchable text was found in the document.")
+    return prepared
+
+
+def extract_text_sections(
     file_bytes: bytes,
-    metadata: KnowledgeDocumentMetadata,
     *,
     html: bool = False,
-) -> list[KnowledgeChunk]:
+) -> list[tuple[str, list[str]]]:
     try:
         text = file_bytes.decode("utf-8-sig")
     except UnicodeDecodeError as error:
@@ -101,8 +113,28 @@ def extract_text_chunks(
         re.sub(r"\s+", " ", paragraph).strip()
         for paragraph in re.split(r"\n\s*\n", text)
     ]
+    return [("Content", [paragraph for paragraph in paragraphs if paragraph])]
+
+
+def extract_html_link_targets(file_bytes: bytes) -> list[str]:
+    try:
+        content = file_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        raise TextIngestionError("Text documents must use UTF-8 encoding.") from error
+    parser = _VisibleHtmlText()
+    parser.feed(content)
+    parser.close()
+    return parser.link_targets
+
+
+def extract_text_chunks(
+    file_bytes: bytes,
+    metadata: KnowledgeDocumentMetadata,
+    *,
+    html: bool = False,
+) -> list[KnowledgeChunk]:
     return chunks_from_sections(
-        [("Content", [paragraph for paragraph in paragraphs if paragraph])],
+        extract_text_sections(file_bytes, html=html),
         metadata,
     )
 
@@ -110,10 +142,12 @@ def extract_text_chunks(
 class _VisibleHtmlText(HTMLParser):
     _IGNORED_TAGS = {"script", "style", "noscript", "template"}
     _BLOCK_TAGS = {"br", "p", "div", "li", "h1", "h2", "h3", "h4", "tr"}
+    _URL_ATTRIBUTES = {"href", "src", "action", "formaction", "cite", "poster"}
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.paragraphs: list[str] = []
+        self.link_targets: list[str] = []
         self.ignored: list[str] = []
 
     def handle_starttag(
@@ -121,7 +155,11 @@ class _VisibleHtmlText(HTMLParser):
         tag: str,
         _attrs: list[tuple[str, str | None]],
     ) -> None:
-        del _attrs
+        self.link_targets.extend(
+            value
+            for name, value in _attrs
+            if name.lower() in self._URL_ATTRIBUTES and value
+        )
         normalized_tag = tag.lower()
         if normalized_tag in self._IGNORED_TAGS:
             self.ignored.append(normalized_tag)

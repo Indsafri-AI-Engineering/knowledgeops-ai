@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { ApiError } from "../../api/auth";
 import { scanThreatArtifact, type ThreatScanResult } from "../../api/chat";
+import type { VirusTotalDocumentSummary } from "../../api/knowledge";
+import { getSystemStatus, type SystemStatus } from "../../api/system";
 import { SecurityAlertQueue } from "./SecurityAlertQueue";
 
 type ArtifactKind = "url" | "email" | "document";
@@ -8,9 +10,14 @@ type ArtifactKind = "url" | "email" | "document";
 type Props = {
   canScan: boolean;
   canManageAlerts: boolean;
+  lastDocumentUrlScan: VirusTotalDocumentSummary | null;
 };
 
-export function ThreatScanPanel({ canScan, canManageAlerts }: Props) {
+export function ThreatScanPanel({
+  canScan,
+  canManageAlerts,
+  lastDocumentUrlScan,
+}: Props) {
   const [kind, setKind] = useState<ArtifactKind>("url");
   const [url, setUrl] = useState("");
   const [emailText, setEmailText] = useState("");
@@ -20,6 +27,28 @@ export function ThreatScanPanel({ canScan, canManageAlerts }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [alertsVersion, setAlertsVersion] = useState(0);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [systemStatusError, setSystemStatusError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void getSystemStatus()
+      .then((status) => {
+        if (active) {
+          setSystemStatus(status);
+          setSystemStatusError(null);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSystemStatus(null);
+          setSystemStatusError("VirusTotal provider status could not be loaded.");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function submitScan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,11 +80,51 @@ export function ThreatScanPanel({ canScan, canManageAlerts }: Props) {
     <>
     <SecurityAlertQueue refreshKey={alertsVersion} canManage={canManageAlerts} />
     {canScan && <section className="panel threat-panel" aria-labelledby="threat-heading">
-      <p className="eyebrow">LOCAL RULE SCANNER · NO NETWORK FETCH OR FILE EXECUTION</p>
+      <p className="eyebrow">THREAT ANALYSIS · NO URL FETCH OR FILE EXECUTION</p>
       <h2 id="threat-heading">Threat indicator scan</h2>
+      {systemStatus && (
+        <p role="status">
+          VirusTotal: {systemStatus.virustotal.enabled ? "enabled" : "disabled"} ·{" "}
+          {systemStatus.virustotal.connection_status.replaceAll("_", " ")} ·{" "}
+          API key {systemStatus.virustotal.api_key_configured ? "configured" : "not configured"}
+          {systemStatus.virustotal.last_successful_check
+            ? ` · last successful check ${new Date(
+              systemStatus.virustotal.last_successful_check,
+            ).toLocaleString()}`
+            : ""}
+        </p>
+      )}
+      {systemStatusError && <p className="error" role="alert">{systemStatusError}</p>}
+      {lastDocumentUrlScan && (
+        <article className="answer" aria-live="polite">
+          <h3>Latest ingested document URL analysis</h3>
+          <p>
+            {lastDocumentUrlScan.urls_detected} unique URL(s) · malicious{" "}
+            {lastDocumentUrlScan.malicious_count} · suspicious{" "}
+            {lastDocumentUrlScan.suspicious_count} · clean{" "}
+            {lastDocumentUrlScan.clean_count} · unknown{" "}
+            {lastDocumentUrlScan.unknown_count} · unavailable{" "}
+            {lastDocumentUrlScan.provider_unavailable_count} · rate limited{" "}
+            {lastDocumentUrlScan.rate_limited_count}
+          </p>
+          {lastDocumentUrlScan.results.map((item, index) => (
+            <p key={`${item.redacted_url}-${index}`}>
+              <strong>{item.status.replaceAll("_", " ")}</strong> ·{" "}
+              {item.redacted_url}
+              {item.detection_ratio ? ` · detections ${item.detection_ratio}` : ""}
+            </p>
+          ))}
+          <p>
+            Ingestion {lastDocumentUrlScan.ingestion_blocked
+              ? "was blocked before indexing."
+              : "was not blocked."}
+          </p>
+        </article>
+      )}
       <p>
-        Results are indicators for human review, not proof that an artifact is
-        safe or malicious. Submitted artifact text is not stored.
+        Document uploads use local rules and, when enabled and privacy-eligible,
+        VirusTotal URL reports. A missing report or provider error is unknown,
+        never a clean result. Submitted artifact text is not stored.
       </p>
       <form className="question-form" onSubmit={(event) => void submitScan(event)}>
         <label htmlFor="artifact-kind">Artifact type</label>

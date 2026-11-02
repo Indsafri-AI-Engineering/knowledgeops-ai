@@ -131,9 +131,15 @@ delete documents:
 | Field | Required | Description |
 | --- | --- | --- |
 | `file` | Yes | PDF, DOCX, TXT, MD, HTML, XLSX, or PPTX; maximum 10 MiB |
-| `title` | Yes | Display title, maximum 200 characters |
+| `title` | No | Display title, maximum 200 characters; defaults to the filename without its extension |
 | `access_scope` | Yes | `general`, `hr`, `it`, or `recruitment` |
 | `owner`, `version`, `effective_date`, `next_review`, `environment` | No | Optional source metadata |
+
+The Knowledge documents UI accepts up to 50 files in one selection and uploads
+them sequentially with one shared access scope. Each result is reported
+individually; a failure or duplicate does not prevent later files from being
+processed. Duplicate detection uses the SHA-256 hash of the uploaded file
+bytes, so identical files are rejected even when their filenames differ.
 
 PDFs are limited to 100 pages and 500,000 extracted characters. DOCX, XLSX,
 and PPTX archives are limited to 2,000 entries, 20 MiB expanded content, and
@@ -143,11 +149,16 @@ malformed, empty, unsupported, and image-only PDF documents are rejected.
 The original uploaded bytes are not retained. The response includes the
 document ID, content hash, file type, upload timestamp, and chunk count.
 
-Document metadata and extracted chunks are stored in the JSON file
-`data/runtime/knowledge.json` (override with `KNOWLEDGE_STORE_PATH`).
-Corrupt or structurally invalid JSON fails explicitly without overwrite.
-When `RAG_BACKEND=qdrant`, LangChain generates embeddings and stores the
-derived vectors in local Qdrant. The JSON store remains authoritative.
+Document metadata and extracted chunks are stored in MongoDB Atlas in the
+`knowledge_documents` and `knowledge_chunks` collections by default. Each
+chunk stores its text and derived embedding; document metadata is stored once
+in the documents collection. Atlas Vector Search uses the configured
+`MONGODB_VECTOR_INDEX` index. The vector index must include an `access_scope`
+filter field, and retrieval applies the authenticated user's allowed scopes
+server-side before returning matches. `KNOWLEDGE_INGESTION_ENABLED` defaults
+to `false`; enable it only after the Atlas storage and vector-search path have
+been verified. Existing local JSON and Qdrant data are not migrated
+automatically.
 
 ## Chat and citations
 
@@ -194,6 +205,7 @@ documentation workflow.
 | `GET` | `/api/v1/audit-events?limit=100` | Read audit events with `audit:read` |
 
 Request IDs are returned in `X-Request-ID`. Audit records omit question and
-document text. Local JSON storage, embedded Qdrant, sessions, and locks are
-single-process development components; retention, backups, production
-identity, and deployment controls still require approval.
+document text. Audit, alert, and user-profile JSON stores and in-process
+sessions, caches, and locks remain single-process development components;
+retention, backups, production identity, and deployment controls still
+require approval.

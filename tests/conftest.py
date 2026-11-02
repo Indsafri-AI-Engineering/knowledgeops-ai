@@ -15,6 +15,8 @@ _TEST_RUNTIME_DIRECTORY = tempfile.TemporaryDirectory(
 )
 _TEST_RUNTIME_PATH = Path(_TEST_RUNTIME_DIRECTORY.name)
 os.environ["KNOWLEDGE_STORE_PATH"] = str(_TEST_RUNTIME_PATH / "knowledge.json")
+os.environ["KNOWLEDGE_STORE_BACKEND"] = "local"
+os.environ["KNOWLEDGE_INGESTION_ENABLED"] = "true"
 os.environ["AUDIT_LOG_PATH"] = str(_TEST_RUNTIME_PATH / "audit.jsonl")
 os.environ["SECURITY_ALERTS_PATH"] = str(
     _TEST_RUNTIME_PATH / "security_alerts.json"

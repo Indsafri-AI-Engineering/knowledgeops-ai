@@ -196,9 +196,12 @@ The `.env.example` file documents configuration names and can be copied to
 Authenticated users mapped to `threat_scans:scan` can use the local
 threat-analysis workspace.
 
-Dense retrieval uses local embedded Qdrant with Ollama embeddings. Install
-and start Ollama, ensure the configured models are available, and retain the
-default settings in `.env`:
+Knowledge storage and dense retrieval use MongoDB Atlas and Atlas Vector
+Search. Complete the [Atlas setup](docs/MONGODB_ATLAS_SETUP.md), including
+creating the vector index, before starting retrieval. User uploads remain
+disabled until that path has been verified. The default embedding and
+generation models use local Ollama; install and start Ollama and ensure the
+models are available:
 
 ```powershell
 ollama pull nomic-embed-text
@@ -212,7 +215,8 @@ files. Groq is a chat provider only here; Ollama or Mistral can provide
 embeddings. Add these settings to `.env` for Groq:
 
 ```dotenv
-RAG_BACKEND=qdrant
+RAG_BACKEND=atlas
+KNOWLEDGE_STORE_BACKEND=mongodb
 RAG_EMBEDDING_PROVIDER=ollama
 RAG_GENERATION_BACKEND=groq
 AI_DATA_CLASS=synthetic
@@ -232,15 +236,15 @@ questions with hosted providers.
 
 The default Ollama models can be downloaded locally with
 `ollama pull nomic-embed-text` and `ollama pull llama3.2:3b`. LangChain uses
-Ollama for embeddings and chat generation; embedded Qdrant persists vectors
-under `data/runtime/`. The chat model receives only scope-filtered retrieved
-chunks, is instructed to treat them as untrusted evidence, and must cite
-source labels. If retrieval finds no evidence, the model is not called and
-the API returns an abstention. If Ollama is unavailable or the model is
-missing, the request fails rather than silently substituting a template.
+Ollama for embeddings and chat generation; Atlas stores the chunk vectors.
+The chat model receives only scope-filtered retrieved chunks, is instructed
+to treat them as untrusted evidence, and must cite source labels. If retrieval
+finds no evidence, the model is not called and the API returns an abstention.
+If Ollama is unavailable or the model is missing, the request fails rather
+than silently substituting a template.
 The default remains the local lexical retriever and deterministic answer
 template when `RAG_BACKEND=local`; the checked-in `.env.example` selects
-Qdrant and Ollama. The backend loads `.env` automatically, and process
+Atlas and Ollama. The backend loads `.env` automatically, and process
 environment values take precedence.
 
 For local OIDC with Keycloak, see the
@@ -251,14 +255,14 @@ allowlisted capabilities.
 ## Current implementation and limitations
 
 The running application uses OIDC authentication, permission-filtered
-document retrieval, local JSON persistence for document metadata and extracted
-chunks, optional embedded Qdrant vectors, source citations, a stateless chat
-interface, an authenticated system-status panel, and an optional live Jira
-Cloud workspace. Chat requests and answers are not persisted or carried into
-later requests. The Jira integration uses a backend-only service-account
-token; search requires `jira:read`, and issue changes require `jira:approve`
-plus an explicit confirmation. Knowledge, audit, and other application
-records remain local JSON for now. Users with
+document retrieval, MongoDB Atlas persistence for knowledge metadata, chunks,
+and vectors, source citations, a stateless chat interface, an authenticated
+system-status panel, and an optional live Jira Cloud workspace. Chat requests
+and answers are not persisted or carried into later requests. The Jira
+integration uses a backend-only service-account token; search requires
+`jira:read`, and issue changes require `jira:approve` plus an explicit
+confirmation. Audit and other runtime records remain local JSON for now.
+Users with
 `knowledge:manage` can upload PDF, DOCX, TXT, Markdown, HTML, XLSX, and PPTX
 documents. The active corpus includes clearly fictional seed documents and
 any authorized uploaded documents. Fictional fixtures and mock connector
@@ -902,9 +906,15 @@ use Knowledge AI to retrieve security policies and explain its findings.
 ### Current implementation
 
 - **Pre-ingestion inspection:** uploaded bytes receive a static preflight
-  before document parsers run. Extracted text is then scanned before chunks
-  are indexed or sent to an embedding provider. High-severity credential and
-  key indicators block ingestion by default (`THREAT_INGESTION_BLOCK_SEVERITY=high`).
+  before document parsers run. Extracted sections and supported hyperlink
+  targets are scanned before chunks are created, indexed, or sent to an
+  embedding provider. High-severity
+  credential and key indicators block ingestion by default
+  (`THREAT_INGESTION_BLOCK_SEVERITY=high`).
+  Extracted URLs are normalized and deduplicated; when enabled and privacy
+  eligible, VirusTotal v3 report lookups run before indexing. Unknown URLs are
+  looked up only by their existing report identifier; the app never submits
+  URLs for analysis or fetches them.
   Lower-severity indicators create alerts and remain ingestible unless the
   operator raises the threshold.
 - **Interactive scans:** authorized security analysts can inspect URLs,
@@ -916,8 +926,9 @@ use Knowledge AI to retrieve security policies and explain its findings.
 - **Alert review:** security analysts can list, acknowledge, resolve, or mark
   alerts as false positives. Alerts preserve rule IDs, explanations, severity,
   detector version, actor, and (for uploads) a SHA-256 fingerprint. Matched
-  secret values, submitted text, and uploaded filenames are not included in
-  alert records.
+  secret values, complete URLs, submitted text, and uploaded filenames are not
+  included in alert records. VirusTotal findings include the provider,
+  redacted domain, report status, detection ratio, and document event reference.
 - **n8n:** an optional authenticated outbound webhook sends minimal alert
   metadata. Delivery success/failure appears on the alert. An analyst can
   acknowledge and explicitly confirm a response-workflow dispatch. The app
@@ -946,19 +957,58 @@ For Jira issue-created events, configure `N8N_JIRA_WEBHOOK_URL` and optionally
 `N8N_JIRA_WEBHOOK_TOKEN`. Jira creation remains successful if the subsequent
 notification fails; the API response reports the notification outcome.
 
-These are deterministic indicators, not antivirus, malware detonation,
-external reputation, or a full DLP classifier. The event window is
-in-process and resets on backend restart; alerts themselves are stored in the
-existing JSON persistence pattern. A no-indicator result is not proof of
-safety. Production use requires approved retention, monitor thresholds,
-external service controls, and security operations procedures.
+The local rules are deterministic indicators, not antivirus or malware
+detonation. VirusTotal supplies external URL reputation only; it does not
+download or execute the URL. The event window and URL report cache are
+in-process and reset on backend restart; alerts use the existing JSON
+persistence pattern. A clean or no-indicator result is not proof of safety.
+Production use requires approved retention, monitor thresholds, external
+service controls, and security operations procedures.
+
+### VirusTotal URL reputation
+
+VirusTotal is opt-in. Set `VIRUSTOTAL_ENABLED=true` and provide
+`VIRUSTOTAL_API_KEY` in the backend environment or a secret manager. The key
+is sent only in the backend `x-apikey` header and is never returned by the
+status API. `.env.example` contains placeholders only. The system status view
+shows whether lookups are enabled, whether a key is configured, the latest
+provider state, and the last successful check.
+
+The default `VIRUSTOTAL_PRIVACY_POLICY=public_root_urls` only permits public
+DNS hostnames with no query string and no non-root path. The optional
+`public_urls` policy permits ordinary paths but still excludes query strings,
+private/local hosts, and paths that resemble credentials, identifiers, or
+personal data. Set `VIRUSTOTAL_ALLOWED_DOMAINS` to a comma-separated
+organization-approved domain list to further restrict which domains can be
+queried; an empty list leaves eligibility to the selected privacy policy.
+`disabled` prevents all external lookups. Documents that trigger
+the existing secret, personal-email, national-ID, payment-card, or confidential
+content rules have all external URL lookups suppressed. Alerts and API results
+contain only the domain and state that URL paths and queries were redacted.
+
+`VIRUSTOTAL_FAILURE_POLICY=fail_open` (default) preserves existing ingestion
+behavior when a report is unknown, the provider is unavailable, the key is
+missing, or the provider rate-limits the request; these outcomes remain visibly
+unknown and are never called clean. Set `fail_closed` to block on those
+provider outcomes as well. This does not block URLs filtered by the configured
+privacy policy or when VirusTotal is explicitly disabled. Existing
+`THREAT_INGESTION_BLOCK_SEVERITY` thresholds continue to govern malicious and
+suspicious findings. `VIRUSTOTAL_TIMEOUT_SECONDS`, `VIRUSTOTAL_CACHE_TTL_SECONDS`,
+and `VIRUSTOTAL_MAX_URLS_PER_DOCUMENT` bound request duration, repeat lookups,
+and per-document requests.
+
+The ingestion response and **Knowledge documents** view show unique URL count,
+malicious/suspicious/clean/unknown totals, report ratios, and whether a document
+was blocked before indexing. The existing **Security alert queue** retains the
+acknowledge, resolve, and false-positive lifecycle.
 
 ### 12.1 Inputs and analysis
 
 -   **URLs:** validate and normalise the URL and inspect deterministic
     indicators such as numeric-IP hosts, punycode, non-HTTPS schemes, and
-    sensitive account-related path terms. No reputation lookup, redirect
-    handling, or network request is performed.
+    sensitive account-related path terms. For uploaded documents, eligible
+    URLs can also receive VirusTotal existing-report lookups; ineligible,
+    unknown, and provider-failure outcomes are not clean results.
 -   **Emails:** inspect pasted RFC-style headers and plain-text body for
     sender/reply-to mismatches, credential or urgency language, and URLs.
     Attachment names may be noted; attachment contents are not read.
@@ -972,9 +1022,9 @@ external service controls, and security operations procedures.
 
 -   The active scanner does not accept binary uploads, execute
     documents/attachments, or fetch URLs.
--   URL fetching, external reputation services, and binary parsing must
-    not be added without SSRF controls, isolated resource-limited
-    processing, timeouts, and network-egress restrictions.
+-   Submitted URLs are never fetched; VirusTotal requests use the fixed API
+    host, API v3 URL identifiers, bounded timeouts, and no redirects.
+    External lookups are privacy-filtered and never submit unknown URLs.
 -   Treat reputation no-match as unknown, not proof of safety.
 -   Keep evidence, rule/model version, timestamp, and limitations with
     every finding.

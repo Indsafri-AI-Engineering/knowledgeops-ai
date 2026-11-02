@@ -7,6 +7,7 @@ from backend.app.storage.security_alerts import (
     AlertType,
     SecurityAlert,
     SecurityAlertRepository,
+    VirusTotalAlertFinding,
 )
 from backend.app.threat_detection.rules import DETECTOR_VERSION, ThreatIndicator
 
@@ -53,6 +54,7 @@ def create_security_alert(
     detector_version: str,
     indicators: list[ThreatIndicator],
     artifact_sha256: str | None = None,
+    virustotal_findings: list[VirusTotalAlertFinding] | None = None,
 ) -> SecurityAlert:
     alert = SecurityAlert(
         alert_type=alert_type,
@@ -62,6 +64,7 @@ def create_security_alert(
         actor_id=actor_id,
         artifact_sha256=artifact_sha256,
         detector_version=detector_version,
+        virustotal_findings=virustotal_findings or [],
         indicators=[
             AlertIndicator(
                 rule_id=indicator.rule_id,

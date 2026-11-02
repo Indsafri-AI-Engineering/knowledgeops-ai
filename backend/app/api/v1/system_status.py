@@ -7,6 +7,10 @@ from pydantic import BaseModel
 from backend.app.core.auth import auth_mode, get_current_user
 from backend.app.integrations.jira_cloud import JiraCloudClient
 from backend.app.integrations.n8n import N8nAlertNotifier, N8nJiraNotifier
+from backend.app.threat_detection.virustotal import (
+    VirusTotalProviderStatus,
+    VirusTotalService,
+)
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -24,6 +28,7 @@ class SystemComponent(BaseModel):
 class SystemStatusResponse(BaseModel):
     environment: str
     components: list[SystemComponent]
+    virustotal: VirusTotalProviderStatus
 
 
 _COMPONENTS = [
@@ -118,6 +123,96 @@ _COMPONENTS = [
 )
 def read_system_status() -> SystemStatusResponse:
     components = list(_COMPONENTS)
+    virustotal_status = VirusTotalService().provider_status()
+
+    def replace_component(name: str, component: SystemComponent) -> None:
+        index = next(
+            index for index, current in enumerate(components)
+            if current.name == name
+        )
+        components[index] = component
+
+    store_backend = os.getenv(
+        "KNOWLEDGE_STORE_BACKEND",
+        "mongodb",
+    ).strip().lower()
+    mongodb_configured = bool(os.getenv("MONGODB_URI", "").strip())
+    if store_backend == "mongodb" and mongodb_configured:
+        source_mode: SystemMode = "external"
+        source_description = (
+            "MongoDB stores uploaded document metadata and extracted chunks."
+        )
+        source_external = True
+        storage_mode: SystemMode = "external"
+        storage_description = (
+            "Knowledge documents and chunks are stored in MongoDB; audit, "
+            "security-alert, and other runtime records remain in local stores."
+        )
+        storage_external = True
+    elif store_backend == "local":
+        source_mode = "local"
+        source_description = (
+            "User-uploaded documents and extracted text chunks are stored locally."
+        )
+        source_external = False
+        storage_mode = "local"
+        storage_description = (
+            "Knowledge documents and runtime records use local JSON stores."
+        )
+        storage_external = False
+    else:
+        source_mode = "disabled"
+        source_description = (
+            "MongoDB document storage is selected but MONGODB_URI is not configured."
+        )
+        source_external = False
+        storage_mode = "disabled"
+        storage_description = source_description
+        storage_external = False
+    replace_component(
+        "Knowledge sources",
+        SystemComponent(
+            name="Knowledge sources",
+            category="knowledge",
+            mode=source_mode,
+            description=source_description,
+            external_connection=source_external,
+        ),
+    )
+    replace_component(
+        "Storage",
+        SystemComponent(
+            name="Storage",
+            category="data",
+            mode=storage_mode,
+            description=storage_description,
+            external_connection=storage_external,
+        ),
+    )
+
+    threat_index = next(
+        index for index, component in enumerate(components)
+        if component.name == "Threat detection"
+    )
+    virustotal_configured = (
+        virustotal_status.enabled and virustotal_status.api_key_configured
+    )
+    components[threat_index] = SystemComponent(
+        name="Threat detection",
+        category="security",
+        mode="external" if virustotal_configured else "local",
+        description=(
+            "Local document rules plus VirusTotal URL reputation lookups. "
+            f"Privacy policy: {virustotal_status.privacy_policy}; "
+            f"provider failure policy: {virustotal_status.failure_policy}."
+            if virustotal_configured
+            else (
+                "Local document and URL rules run before indexing. "
+                "VirusTotal URL reputation is not currently connected."
+            )
+        ),
+        external_connection=virustotal_configured,
+    )
     n8n_index = next(
         index for index, component in enumerate(components)
         if component.name == "n8n notifications"
@@ -157,8 +252,8 @@ def read_system_status() -> SystemStatusResponse:
         "RAG_EMBEDDING_PROVIDER",
         "ollama",
     ).strip().lower()
-    rag_backend = os.getenv("RAG_BACKEND", "qdrant").strip().lower()
-    if embedding_provider == "mistral" and rag_backend == "qdrant":
+    rag_backend = os.getenv("RAG_BACKEND", "atlas").strip().lower()
+    if embedding_provider == "mistral" and rag_backend in ("qdrant", "atlas"):
         embedding_status = SystemComponent(
             name="Embeddings",
             category="ai",
@@ -184,7 +279,7 @@ def read_system_status() -> SystemStatusResponse:
             mode="disabled",
             description=(
                 "Mistral embeddings are configured but inactive until "
-                "RAG_BACKEND=qdrant."
+                "RAG_BACKEND is set to qdrant or atlas."
                 if embedding_provider == "mistral"
                 else f"Unsupported RAG_EMBEDDING_PROVIDER: {embedding_provider}."
             ),
@@ -196,21 +291,38 @@ def read_system_status() -> SystemStatusResponse:
     )
     components[embedding_index] = embedding_status
 
-    if os.getenv("RAG_BACKEND", "qdrant").lower() == "qdrant":
-        retrieval_index = next(
-            index
-            for index, component in enumerate(components)
-            if component.name == "Retrieval"
-        )
-        components[retrieval_index] = SystemComponent(
-            name="Retrieval",
-            category="knowledge",
-            mode="local",
-            description=(
-                f"LangChain {embedding_provider.title()} embeddings with "
-                "persistent local Qdrant dense retrieval and lexical hybrid ranking."
+    if rag_backend == "qdrant":
+        replace_component(
+            "Retrieval",
+            SystemComponent(
+                name="Retrieval",
+                category="knowledge",
+                mode="local",
+                description=(
+                    f"LangChain {embedding_provider.title()} embeddings with "
+                    "persistent local Qdrant dense retrieval and lexical hybrid ranking."
+                ),
+                external_connection=False,
             ),
-            external_connection=False,
+        )
+    elif rag_backend == "atlas":
+        atlas_retrieval_ready = (
+            store_backend == "mongodb" and mongodb_configured
+        )
+        replace_component(
+            "Retrieval",
+            SystemComponent(
+                name="Retrieval",
+                category="knowledge",
+                mode="external" if atlas_retrieval_ready else "disabled",
+                description=(
+                    "Atlas Vector Search uses a server-side access-scope "
+                    "prefilter; hybrid retrieval combines it with local BM25 ranking."
+                    if atlas_retrieval_ready
+                    else "Atlas Vector Search is selected but MongoDB storage is not configured."
+                ),
+                external_connection=atlas_retrieval_ready,
+            ),
         )
     generation_backend = os.getenv(
         "RAG_GENERATION_BACKEND",
@@ -300,4 +412,5 @@ def read_system_status() -> SystemStatusResponse:
     return SystemStatusResponse(
         environment=environment,
         components=components,
+        virustotal=virustotal_status,
     )

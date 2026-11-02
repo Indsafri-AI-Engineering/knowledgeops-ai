@@ -115,6 +115,26 @@ export function SecurityAlertQueue({ refreshKey, canManage }: Props) {
                   </li>
                 ))}
               </ul>
+              {alert.virustotal_findings.length > 0 && (
+                <ul aria-label="VirusTotal findings">
+                  {alert.virustotal_findings.map((finding, index) => (
+                    <li key={`${finding.document_event_reference}-${index}`}>
+                      <strong>{finding.provider} · {finding.threat_category}</strong>
+                      <span>
+                        {finding.scan_status}
+                        {finding.detection_ratio
+                          ? ` · detections ${finding.detection_ratio}`
+                          : ""}
+                        {` · ${finding.redacted_url}`}
+                      </span>
+                      <span>
+                        Document event {finding.document_event_reference} ·{" "}
+                        {new Date(finding.timestamp).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {canManage && alert.status === "open" && (
                 <button
                   className="button button-secondary"

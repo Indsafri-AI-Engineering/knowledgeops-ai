@@ -37,10 +37,7 @@ def _split_page_text(text: str) -> list[str]:
     return chunks
 
 
-def extract_pdf_chunks(
-    pdf_bytes: bytes,
-    metadata: KnowledgeDocumentMetadata,
-) -> list[KnowledgeChunk]:
+def extract_pdf_sections(pdf_bytes: bytes) -> list[tuple[str, list[str]]]:
     try:
         reader = PdfReader(BytesIO(pdf_bytes), strict=True)
     except (PdfReadError, ValueError) as error:
@@ -55,7 +52,7 @@ def extract_pdf_chunks(
             f"PDFs are limited to {MAX_PDF_PAGES} pages."
         )
 
-    chunks: list[KnowledgeChunk] = []
+    sections: list[tuple[str, list[str]]] = []
     character_count = 0
     for page_number, page in enumerate(reader.pages, start=1):
         text = page.extract_text() or ""
@@ -64,30 +61,73 @@ def extract_pdf_chunks(
             raise PDFIngestionError(
                 f"Extracted PDF text is limited to {MAX_EXTRACTED_CHARACTERS} characters."
             )
-        for chunk_text in _split_page_text(text):
-            chunk_id = f"{metadata.document_id}:{len(chunks)}"
-            chunks.append(
-                KnowledgeChunk(
-                    chunk_id=chunk_id,
-                    document_id=metadata.document_id,
-                    title=metadata.title,
-                    source=metadata.source,
-                    access_scope=metadata.access_scope,
-                    source_path=(
-                        f"uploaded/{metadata.document_id}/{metadata.filename}"
-                    ),
-                    section=f"Page {page_number}",
-                    text=chunk_text,
-                    owner=metadata.owner,
-                    version=metadata.version,
-                    effective_date=metadata.effective_date,
-                    next_review=metadata.next_review,
-                    environment=metadata.environment,
-                )
-            )
+        if text.strip():
+            sections.append((f"Page {page_number}", [text]))
 
+    if not sections:
+        raise PDFIngestionError(
+            "No searchable text was found. Scanned/image-only PDFs are not supported."
+        )
+    return sections
+
+
+def chunks_from_pdf_sections(
+    sections: list[tuple[str, list[str]]],
+    metadata: KnowledgeDocumentMetadata,
+) -> list[KnowledgeChunk]:
+    chunks: list[KnowledgeChunk] = []
+    for section, paragraphs in sections:
+        for paragraph in paragraphs:
+            for chunk_text in _split_page_text(paragraph):
+                chunk_id = f"{metadata.document_id}:{len(chunks)}"
+                chunks.append(
+                    KnowledgeChunk(
+                        chunk_id=chunk_id,
+                        document_id=metadata.document_id,
+                        title=metadata.title,
+                        source=metadata.source,
+                        access_scope=metadata.access_scope,
+                        source_path=(
+                            f"uploaded/{metadata.document_id}/{metadata.filename}"
+                        ),
+                        section=section,
+                        text=chunk_text,
+                        owner=metadata.owner,
+                        version=metadata.version,
+                        effective_date=metadata.effective_date,
+                        next_review=metadata.next_review,
+                        environment=metadata.environment,
+                    )
+                )
     if not chunks:
         raise PDFIngestionError(
             "No searchable text was found. Scanned/image-only PDFs are not supported."
         )
     return chunks
+
+
+def extract_pdf_chunks(
+    pdf_bytes: bytes,
+    metadata: KnowledgeDocumentMetadata,
+) -> list[KnowledgeChunk]:
+    return chunks_from_pdf_sections(extract_pdf_sections(pdf_bytes), metadata)
+
+
+def extract_pdf_link_targets(pdf_bytes: bytes) -> list[str]:
+    try:
+        reader = PdfReader(BytesIO(pdf_bytes), strict=True)
+    except (PdfReadError, ValueError) as error:
+        raise PDFIngestionError("The uploaded file is not a valid readable PDF.") from error
+    if reader.is_encrypted:
+        raise PDFIngestionError("Encrypted PDFs are not supported.")
+
+    targets: list[str] = []
+    for page in reader.pages:
+        annotations = page.get("/Annots") or []
+        for annotation_reference in annotations:
+            annotation = annotation_reference.get_object()
+            action = annotation.get("/A")
+            target = action.get("/URI") if action else None
+            if isinstance(target, str):
+                targets.append(target)
+    return targets

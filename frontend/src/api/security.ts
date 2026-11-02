@@ -28,6 +28,16 @@ export type SecurityAlert = {
     description: string;
     evidence_redacted: boolean;
   }>;
+  virustotal_findings: Array<{
+    provider: "VirusTotal";
+    threat_category: "Malicious URL" | "Suspicious URL" | "Unknown URL reputation";
+    severity: "info" | "low" | "medium" | "high";
+    detection_ratio: string | null;
+    scan_status: string;
+    redacted_url: string;
+    document_event_reference: string;
+    timestamp: string;
+  }>;
   detector_version: string;
   notification_status: "not_configured" | "sent" | "failed";
   response_workflow_status:

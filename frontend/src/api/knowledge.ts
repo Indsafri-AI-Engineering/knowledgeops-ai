@@ -19,6 +19,45 @@ export type KnowledgeDocument = {
   chunk_count: number;
 };
 
+export type VirusTotalURLResult = {
+  status:
+    | "malicious"
+    | "suspicious"
+    | "clean"
+    | "unknown"
+    | "provider_unavailable"
+    | "rate_limited"
+    | "authentication_failure"
+    | "not_configured"
+    | "disabled"
+    | "privacy_filtered";
+  redacted_url: string;
+  malicious: number | null;
+  suspicious: number | null;
+  harmless: number | null;
+  undetected: number | null;
+  detection_ratio: string | null;
+  analysis_status: string;
+  last_analysis_at: string | null;
+  checked_at: string;
+  reason: string | null;
+};
+
+export type VirusTotalDocumentSummary = {
+  enabled: boolean;
+  provider_status: string;
+  urls_detected: number;
+  malicious_count: number;
+  suspicious_count: number;
+  clean_count: number;
+  unknown_count: number;
+  provider_unavailable_count: number;
+  rate_limited_count: number;
+  authentication_failure_count: number;
+  ingestion_blocked: boolean;
+  results: VirusTotalURLResult[];
+};
+
 export async function listKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/knowledge/documents`);
   if (!response.ok) {
@@ -29,9 +68,11 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
 
 export async function ingestKnowledgeDocument(form: FormData): Promise<{
   document: KnowledgeDocument;
-  status: "stored_locally";
+  status: "stored";
   security_status: "clear" | "alert_created";
   security_alert_id: string | null;
+  url_scan: VirusTotalDocumentSummary;
+  ingestion_blocked: boolean;
 }> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/knowledge/documents`, {
     method: "POST",
@@ -42,13 +83,17 @@ export async function ingestKnowledgeDocument(form: FormData): Promise<{
     throw new ApiError(
       payload.detail ?? `Document upload failed (${response.status}).`,
       response.status,
+      response.headers.get("X-Request-ID"),
+      payload,
     );
   }
   return (await response.json()) as {
     document: KnowledgeDocument;
-    status: "stored_locally";
+    status: "stored";
     security_status: "clear" | "alert_created";
     security_alert_id: string | null;
+    url_scan: VirusTotalDocumentSummary;
+    ingestion_blocked: boolean;
   };
 }
 

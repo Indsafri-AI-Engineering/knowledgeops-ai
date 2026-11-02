@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from html import escape
 from io import BytesIO
 import json
@@ -6,12 +7,19 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
+from pypdf import PdfReader, PdfWriter
+from pypdf.generic import RectangleObject
 
+import backend.app.api.v1.knowledge_documents as knowledge_document_api
 from backend.app.main import app
 from backend.app.knowledge.index import get_knowledge_index
 from backend.app.storage.knowledge import (
     CorruptKnowledgeStoreError,
     KnowledgeDocumentStore,
+)
+from backend.app.threat_detection.virustotal import (
+    VirusTotalService,
+    VirusTotalURLResult,
 )
 
 
@@ -56,6 +64,19 @@ def _text_pdf(text: str) -> bytes:
         f"startxref\n{xref_offset}\n%%EOF\n".encode()
     )
     return b"".join(parts)
+
+
+def _linked_pdf(text: str, url: str) -> bytes:
+    writer = PdfWriter()
+    writer.add_page(PdfReader(BytesIO(_text_pdf(text))).pages[0])
+    writer.add_uri(
+        page_number=0,
+        uri=url,
+        rect=RectangleObject([0, 0, 40, 40]),
+    )
+    buffer = BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
 
 
 def _text_docx(*paragraphs: str) -> bytes:
@@ -132,6 +153,7 @@ def _upload(
     client: TestClient,
     content: bytes,
     filename: str = "synthetic_policy.pdf",
+    title: str | None = "Synthetic Widget Calibration",
 ):
     content_types = {
         ".pdf": "application/pdf",
@@ -143,16 +165,33 @@ def _upload(
         ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     }
     suffix = filename.rsplit(".", 1)[-1].lower()
+    data = {
+        "access_scope": "it",
+        "owner": "Fictional IT",
+        "version": "synthetic-v1",
+    }
+    if title is not None:
+        data["title"] = title
     return client.post(
         "/api/v1/knowledge/documents",
         files={"file": (filename, content, content_types.get(f".{suffix}", "application/octet-stream"))},
-        data={
-            "title": "Synthetic Widget Calibration",
-            "access_scope": "it",
-            "owner": "Fictional IT",
-            "version": "synthetic-v1",
-        },
+        data=data,
     )
+
+
+def test_ingestion_stays_disabled_until_atlas_is_verified(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("KNOWLEDGE_INGESTION_ENABLED", "false")
+
+    response = _upload(
+        admin_client,
+        _text_pdf("Synthetic document for the disabled-ingestion check."),
+    )
+
+    assert response.status_code == 503
+    assert "ingestion is disabled" in response.json()["detail"].lower()
 
 
 def test_pdf_ingestion_persists_chunks_and_makes_them_retrievable(
@@ -415,12 +454,32 @@ def test_duplicate_pdf_is_rejected_and_delete_removes_searchable_chunks(
     first_response = _upload(admin_client, pdf)
     document_id = first_response.json()["document"]["document_id"]
 
-    assert _upload(admin_client, pdf).status_code == 409
+    duplicate_response = _upload(
+        admin_client,
+        pdf,
+        filename="renamed-copy.pdf",
+    )
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json()["detail"] == "This document has already been ingested."
     assert admin_client.delete(
         f"/api/v1/knowledge/documents/{document_id}"
     ).status_code == 204
     assert admin_client.get("/api/v1/knowledge/documents").json() == []
     assert get_knowledge_index().search("amber calibration dial", {"it"}) == []
+
+
+def test_upload_defaults_title_to_filename_without_extension(
+    admin_client: TestClient,
+) -> None:
+    response = _upload(
+        admin_client,
+        _text_pdf("Fictional document used to verify default naming."),
+        filename="general-handbook.pdf",
+        title=None,
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["document"]["title"] == "general-handbook"
 
 
 def test_pdf_upload_rejects_invalid_content(admin_client: TestClient) -> None:
@@ -478,6 +537,278 @@ def test_extracted_office_text_is_scanned_before_indexing(
     assert get_knowledge_index().chunks == existing_chunks
     alerts_path = tmp_path / "security_alerts.json"
     assert secret_value not in alerts_path.read_text(encoding="utf-8")
+
+
+def _mock_virustotal_result(status: str) -> VirusTotalURLResult:
+    counts = {
+        "malicious": (3, 0, 70, 20),
+        "suspicious": (0, 2, 70, 20),
+        "clean": (0, 0, 80, 10),
+        "unknown": (None, None, None, None),
+    }[status]
+    total = sum(value or 0 for value in counts)
+    ratio = (
+        f"{(counts[0] or 0) + (counts[1] or 0)}/{total}"
+        if total
+        else None
+    )
+    return VirusTotalURLResult(
+        status=status,
+        redacted_url="reputation.example (URL path and query redacted)",
+        malicious=counts[0],
+        suspicious=counts[1],
+        harmless=counts[2],
+        undetected=counts[3],
+        detection_ratio=ratio,
+        analysis_status="completed" if total else "unknown",
+        checked_at=datetime.now(UTC),
+        reason="no_existing_report" if status == "unknown" else None,
+    )
+
+
+def test_virustotal_malicious_document_is_blocked_before_indexing(
+    admin_client: TestClient,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setenv("VIRUSTOTAL_FAILURE_POLICY", "fail_open")
+    monkeypatch.setenv("SECURITY_ALERTS_PATH", str(tmp_path / "vt-alerts.json"))
+    monkeypatch.setattr(
+        VirusTotalService,
+        "lookup_url",
+        lambda self, _url: _mock_virustotal_result("malicious"),
+    )
+
+    def unexpected_chunking(*_args, **_kwargs):
+        raise AssertionError("Blocked documents must not proceed to chunk creation.")
+
+    monkeypatch.setattr(
+        knowledge_document_api,
+        "chunks_from_sections",
+        unexpected_chunking,
+    )
+    existing_chunks = list(get_knowledge_index().chunks)
+
+    response = _upload(
+        admin_client,
+        b"Reference: https://reputation.example/",
+        "url-reference.txt",
+    )
+
+    assert response.status_code == 422
+    result = response.json()
+    assert result["ingestion_blocked"] is True
+    assert result["url_scan"]["malicious_count"] == 1
+    assert result["url_scan"]["clean_count"] == 0
+    assert get_knowledge_index().chunks == existing_chunks
+    alert_text = (tmp_path / "vt-alerts.json").read_text(encoding="utf-8")
+    alert = next(iter(json.loads(alert_text).values()))
+    finding = alert["virustotal_findings"][0]
+    assert finding["provider"] == "VirusTotal"
+    assert finding["threat_category"] == "Malicious URL"
+    assert finding["detection_ratio"] == "3/93"
+    assert finding["scan_status"] == "malicious"
+    assert finding["document_event_reference"]
+    assert "https://reputation.example/" not in alert_text
+    assert "fictional-test-key" not in alert_text
+
+
+def test_clean_virustotal_document_is_indexed_and_reports_counts(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setenv("VIRUSTOTAL_FAILURE_POLICY", "fail_open")
+    monkeypatch.setattr(
+        VirusTotalService,
+        "lookup_url",
+        lambda self, _url: _mock_virustotal_result("clean"),
+    )
+
+    response = _upload(
+        admin_client,
+        b"Public reference: https://reputation.example/",
+        "clean-url.txt",
+    )
+
+    assert response.status_code == 201, response.text
+    result = response.json()
+    assert result["url_scan"]["urls_detected"] == 1
+    assert result["url_scan"]["clean_count"] == 1
+    assert result["url_scan"]["malicious_count"] == 0
+    assert result["ingestion_blocked"] is False
+    assert any(
+        chunk.document_id == result["document"]["document_id"]
+        for chunk in get_knowledge_index().chunks
+    )
+
+
+def test_unknown_virustotal_reputation_is_not_clean_and_fail_open_is_visible(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setenv("VIRUSTOTAL_FAILURE_POLICY", "fail_open")
+    monkeypatch.setattr(
+        VirusTotalService,
+        "lookup_url",
+        lambda self, _url: _mock_virustotal_result("unknown"),
+    )
+
+    response = _upload(
+        admin_client,
+        b"Unrated reference: https://reputation.example/",
+        "unknown-url.txt",
+    )
+
+    assert response.status_code == 201, response.text
+    url_scan = response.json()["url_scan"]
+    assert url_scan["unknown_count"] == 1
+    assert url_scan["clean_count"] == 0
+    assert url_scan["results"][0]["status"] == "unknown"
+
+
+def test_unknown_virustotal_reputation_blocks_when_fail_closed_is_configured(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setenv("VIRUSTOTAL_FAILURE_POLICY", "fail_closed")
+    monkeypatch.setattr(
+        VirusTotalService,
+        "lookup_url",
+        lambda self, _url: _mock_virustotal_result("unknown"),
+    )
+    existing_chunks = list(get_knowledge_index().chunks)
+
+    response = _upload(
+        admin_client,
+        b"Unrated reference: https://reputation.example/",
+        "unknown-fail-closed.txt",
+    )
+
+    assert response.status_code == 422
+    assert response.json()["url_scan"]["ingestion_blocked"] is True
+    assert get_knowledge_index().chunks == existing_chunks
+
+
+def test_sensitive_document_suppresses_virustotal_lookup(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setenv("VIRUSTOTAL_PRIVACY_POLICY", "public_urls")
+
+    def unexpected_lookup(_self, _url: str) -> VirusTotalURLResult:
+        raise AssertionError("Confidential document URLs must not be shared.")
+
+    monkeypatch.setattr(VirusTotalService, "lookup_url", unexpected_lookup)
+
+    response = _upload(
+        admin_client,
+        b"STRICTLY CONFIDENTIAL. See https://reputation.example/public.",
+        "confidential-reference.txt",
+    )
+
+    assert response.status_code == 201, response.text
+    result = response.json()["url_scan"]["results"][0]
+    assert result["status"] == "privacy_filtered"
+    assert result["reason"] == "document_contains_sensitive_information"
+
+
+def test_html_link_targets_are_scanned_without_indexing_the_url(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setattr(
+        VirusTotalService,
+        "lookup_url",
+        lambda self, _url: _mock_virustotal_result("clean"),
+    )
+
+    response = _upload(
+        admin_client,
+        b'<p>Read the <a href="https://reputation.example/">policy</a>.</p>',
+        "linked-policy.html",
+    )
+
+    assert response.status_code == 201, response.text
+    result = response.json()
+    assert result["url_scan"]["urls_detected"] == 1
+    assert result["url_scan"]["clean_count"] == 1
+    stored_text = "\n".join(
+        chunk.text
+        for chunk in get_knowledge_index().chunks
+        if chunk.document_id == result["document"]["document_id"]
+    )
+    assert "policy" in stored_text
+    assert "reputation.example" not in stored_text
+
+
+def test_office_external_relationship_targets_are_scanned(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setattr(
+        VirusTotalService,
+        "lookup_url",
+        lambda self, _url: _mock_virustotal_result("clean"),
+    )
+    docx = _office_archive(
+        {
+            "word/document.xml": (
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+                'wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>'
+                "Open the public policy</w:t></w:r></w:p></w:body></w:document>"
+            ),
+            "word/_rels/document.xml.rels": (
+                '<Relationships xmlns="http://schemas.openxmlformats.org/'
+                'package/2006/relationships"><Relationship Id="rId1" '
+                'Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+                'relationships/hyperlink" Target="https://reputation.example/" '
+                'TargetMode="External"/></Relationships>'
+            ),
+        }
+    )
+
+    response = _upload(admin_client, docx, "linked-policy.docx")
+
+    assert response.status_code == 201, response.text
+    assert response.json()["url_scan"]["urls_detected"] == 1
+    assert response.json()["url_scan"]["clean_count"] == 1
+
+
+def test_pdf_uri_annotations_are_scanned(
+    admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "fictional-test-key")
+    monkeypatch.setattr(
+        VirusTotalService,
+        "lookup_url",
+        lambda self, _url: _mock_virustotal_result("clean"),
+    )
+
+    response = _upload(
+        admin_client,
+        _linked_pdf("Read the public policy.", "https://reputation.example/"),
+        "linked-policy.pdf",
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["url_scan"]["urls_detected"] == 1
+    assert response.json()["url_scan"]["clean_count"] == 1
 
 
 def test_lower_severity_document_indicator_alerts_without_blocking(

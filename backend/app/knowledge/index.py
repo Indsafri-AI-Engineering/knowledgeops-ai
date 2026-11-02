@@ -23,7 +23,11 @@ def get_knowledge_index() -> KnowledgeIndex:
         else []
     )
     chunks.extend(get_knowledge_document_repository().list_chunks())
-    rag_backend = os.getenv("RAG_BACKEND", "qdrant").lower()
+    rag_backend = os.getenv("RAG_BACKEND", "atlas").strip().lower()
+    if rag_backend == "atlas":
+        from backend.app.knowledge.mongodb_index import MongoAtlasKnowledgeIndex
+
+        return MongoAtlasKnowledgeIndex(chunks)
     if rag_backend == "qdrant":
         from backend.app.knowledge.qdrant_index import QdrantKnowledgeIndex
 

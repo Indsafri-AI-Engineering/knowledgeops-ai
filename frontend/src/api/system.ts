@@ -12,6 +12,16 @@ export type SystemComponent = {
 export type SystemStatus = {
   environment: string;
   components: SystemComponent[];
+  virustotal: {
+    enabled: boolean;
+    api_key_configured: boolean;
+    connection_status: string;
+    last_successful_check: string | null;
+    last_check: string | null;
+    last_error: string | null;
+    privacy_policy: string;
+    failure_policy: string;
+  };
 };
 
 const API_BASE_URL = (

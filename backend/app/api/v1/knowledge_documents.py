@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import os
 from datetime import UTC, date, datetime
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
@@ -7,8 +8,11 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
+from starlette.responses import JSONResponse
 
 from backend.app.core.auth import get_current_user
+from backend.app.core.config import get_virustotal_settings
 from backend.app.core.demo_auth import DemoUser
 from backend.app.core.permissions import require_capability
 from backend.app.knowledge.index import get_knowledge_index
@@ -18,12 +22,22 @@ from backend.app.knowledge.document_models import (
 )
 from backend.app.knowledge.office_ingestion import (
     OfficeIngestionError,
-    extract_docx_chunks,
-    extract_pptx_chunks,
-    extract_xlsx_chunks,
+    extract_docx_sections,
+    extract_office_link_targets,
+    extract_pptx_sections,
+    extract_xlsx_sections,
 )
-from backend.app.knowledge.pdf_ingestion import extract_pdf_chunks
-from backend.app.knowledge.text_ingestion import extract_text_chunks
+from backend.app.knowledge.pdf_ingestion import (
+    chunks_from_pdf_sections,
+    extract_pdf_link_targets,
+    extract_pdf_sections,
+)
+from backend.app.knowledge.text_ingestion import (
+    chunks_from_sections,
+    extract_html_link_targets,
+    extract_text_sections,
+    prepare_sections,
+)
 from backend.app.storage.audit import AuditLog
 from backend.app.storage.knowledge import (
     DuplicateKnowledgeDocumentError,
@@ -31,6 +45,7 @@ from backend.app.storage.knowledge import (
     StoredKnowledgeDocument,
     get_knowledge_document_repository,
 )
+from backend.app.storage.security_alerts import VirusTotalAlertFinding
 from backend.app.threat_detection.alerts import (
     create_security_alert,
     document_detector_version,
@@ -42,6 +57,12 @@ from backend.app.threat_detection.document_security import (
     inspect_document_preflight,
 )
 from backend.app.threat_detection.rules import ThreatIndicator
+from backend.app.threat_detection.urls import inspect_url
+from backend.app.threat_detection.virustotal import (
+    VirusTotalDocumentSummary,
+    VirusTotalService,
+    extract_document_urls,
+)
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge documents"])
 logger = logging.getLogger(__name__)
@@ -74,9 +95,11 @@ class KnowledgeDocumentSummary(BaseModel):
 
 class KnowledgeDocumentIngestResponse(BaseModel):
     document: KnowledgeDocumentSummary
-    status: Literal["stored_locally"] = "stored_locally"
+    status: Literal["stored"] = "stored"
     security_status: Literal["clear", "alert_created"] = "clear"
     security_alert_id: str | None = None
+    url_scan: VirusTotalDocumentSummary
+    ingestion_blocked: bool = False
 
 
 def _summary(document: StoredKnowledgeDocument) -> KnowledgeDocumentSummary:
@@ -113,13 +136,13 @@ def _audit(
 
 
 def _record_document_security_result(
-    request: Request,
     user: DemoUser,
     *,
     indicators: list[ThreatIndicator],
     artifact_sha256: str,
+    virustotal_findings: list[VirusTotalAlertFinding] | None = None,
 ) -> str | None:
-    if not indicators:
+    if not indicators and not virustotal_findings:
         return None
     alert = create_security_alert(
         alert_type="document_security",
@@ -130,11 +153,29 @@ def _record_document_security_result(
             "Source content and matched values are not stored in this alert."
         ),
         actor_id=user.user_id,
-        detector_version=document_detector_version(),
+        detector_version=f"{document_detector_version()}+virustotal-v1",
         indicators=indicators,
         artifact_sha256=artifact_sha256,
+        virustotal_findings=virustotal_findings,
     )
     return str(alert.alert_id)
+
+
+def _blocked_ingestion_response(
+    detail: str,
+    *,
+    alert_id: str | None,
+    url_scan: VirusTotalDocumentSummary | None = None,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": detail,
+            "security_alert_id": alert_id,
+            "url_scan": url_scan.model_dump(mode="json") if url_scan else None,
+            "ingestion_blocked": True,
+        },
+    )
 
 
 @router.get("/documents", response_model=list[KnowledgeDocumentSummary])
@@ -170,15 +211,23 @@ async def ingest_knowledge_document(
         Depends(get_knowledge_document_repository),
     ],
     file: Annotated[UploadFile, File()],
-    title: Annotated[str, Form(min_length=1, max_length=200)],
     access_scope: Annotated[KnowledgeScope, Form()],
+    title: Annotated[str | None, Form(max_length=200)] = None,
     owner: Annotated[str | None, Form(max_length=120)] = None,
     version: Annotated[str | None, Form(max_length=80)] = None,
     effective_date: Annotated[date | None, Form()] = None,
     next_review: Annotated[date | None, Form()] = None,
     environment: Annotated[str | None, Form(max_length=160)] = None,
-) -> KnowledgeDocumentIngestResponse:
+) -> KnowledgeDocumentIngestResponse | JSONResponse:
     require_capability(user, "knowledge:manage", request)
+    if os.getenv("KNOWLEDGE_INGESTION_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Document ingestion is disabled until MongoDB storage and "
+                "Atlas Vector Search have been verified."
+            ),
+        )
     filename = PurePosixPath((file.filename or "").replace("\\", "/")).name
     suffix = PurePosixPath(filename).suffix.lower()
     document_type = DOCUMENT_TYPES.get(suffix)
@@ -194,14 +243,18 @@ async def ingest_knowledge_document(
             status_code=413,
             detail="Document size is limited to 10 MiB.",
         )
-    if not title.strip():
+    document_title = (
+        title.strip()
+        if title is not None
+        else PurePosixPath(filename).stem.strip()
+    )
+    if not document_title:
         raise HTTPException(status_code=422, detail="Document title cannot be blank.")
 
     artifact_sha256 = hashlib.sha256(file_bytes).hexdigest()
     preflight_indicators = inspect_document_preflight(filename, file_bytes)
     if should_block_ingestion(preflight_indicators):
         alert_id = _record_document_security_result(
-            request,
             user,
             indicators=preflight_indicators,
             artifact_sha256=artifact_sha256,
@@ -217,19 +270,19 @@ async def ingest_knowledge_document(
                 "severity": highest_severity(preflight_indicators),
             },
         )
-        raise HTTPException(
-            status_code=422,
-            detail=(
+        return _blocked_ingestion_response(
+            (
                 "Document security inspection found high-risk indicators. "
                 "The document was blocked before extraction or indexing; "
                 f"security alert {alert_id} was created."
             ),
+            alert_id=alert_id,
         )
 
     document_id = str(uuid4())
     metadata = KnowledgeDocumentMetadata(
         document_id=document_id,
-        title=title.strip(),
+        title=document_title,
         filename=filename,
         source="uploaded",
         access_scope=access_scope,
@@ -247,41 +300,152 @@ async def ingest_knowledge_document(
                     status_code=415,
                     detail="The uploaded content is not a PDF.",
                 )
-            chunks = extract_pdf_chunks(file_bytes, metadata)
+            extracted_sections = extract_pdf_sections(file_bytes)
         elif suffix in {".docx", ".xlsx", ".pptx"}:
             if not file_bytes.startswith(b"PK"):
                 raise OfficeIngestionError(
                     "The uploaded content is not a valid Office document."
                 )
             if suffix == ".docx":
-                chunks = extract_docx_chunks(file_bytes, metadata)
+                extracted_sections = extract_docx_sections(file_bytes)
             elif suffix == ".xlsx":
-                chunks = extract_xlsx_chunks(file_bytes, metadata)
+                extracted_sections = extract_xlsx_sections(file_bytes)
             else:
-                chunks = extract_pptx_chunks(file_bytes, metadata)
+                extracted_sections = extract_pptx_sections(file_bytes)
         else:
-            chunks = extract_text_chunks(
+            extracted_sections = extract_text_sections(
                 file_bytes,
-                metadata,
                 html=suffix == ".html",
             )
+        link_targets = (
+            extract_pdf_link_targets(file_bytes)
+            if suffix == ".pdf"
+            else (
+                extract_office_link_targets(file_bytes)
+                if suffix in {".docx", ".xlsx", ".pptx"}
+                else (
+                    extract_html_link_targets(file_bytes)
+                    if suffix == ".html"
+                    else []
+                )
+            )
+        )
     except DocumentIngestionError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
-    extracted_text = "\n".join(chunk.text for chunk in chunks)
+    try:
+        normalized_sections = prepare_sections(extracted_sections)
+    except DocumentIngestionError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    extracted_text = "\n".join(
+        paragraph
+        for _, paragraphs in normalized_sections
+        for paragraph in paragraphs
+    )
     extracted_indicators = inspect_document_content(extracted_text)
+    extracted_urls = extract_document_urls(extracted_text)
+    for link_target in link_targets:
+        for link_url in extract_document_urls(link_target):
+            if link_url not in extracted_urls:
+                extracted_urls.append(link_url)
+    local_url_indicators = []
+    for extracted_url in extracted_urls:
+        _, url_indicators = inspect_url(extracted_url)
+        local_url_indicators.extend(url_indicators)
+
+    privacy_sensitive_rules = {
+        "document-secret-assignment",
+        "document-private-key",
+        "document-cloud-access-key",
+        "document-bearer-token",
+        "document-national-id",
+        "document-payment-card",
+        "document-personal-email",
+        "document-confidential-label",
+    }
+    suppress_external_lookup = any(
+        indicator.rule_id in privacy_sensitive_rules
+        for indicator in (*preflight_indicators, *extracted_indicators)
+    )
+    virustotal_settings = get_virustotal_settings()
+    url_scan = await run_in_threadpool(
+        VirusTotalService(virustotal_settings).scan_document_urls,
+        extracted_urls,
+        suppress_external_lookup=suppress_external_lookup,
+    )
+
+    virustotal_indicators: list[ThreatIndicator] = []
+    virustotal_findings: list[VirusTotalAlertFinding] = []
+    failure_statuses = {
+        "unknown",
+        "provider_unavailable",
+        "rate_limited",
+        "authentication_failure",
+        "not_configured",
+    }
+    for result in url_scan.results:
+        if result.status == "malicious":
+            category = "Malicious URL"
+            severity = "high"
+        elif result.status == "suspicious":
+            category = "Suspicious URL"
+            severity = "medium"
+        elif (
+            virustotal_settings.enabled
+            and virustotal_settings.failure_policy == "fail_closed"
+            and result.status in failure_statuses
+        ):
+            category = "Unknown URL reputation"
+            severity = "high"
+        else:
+            continue
+
+        virustotal_indicators.append(
+            ThreatIndicator(
+                rule_id=f"virustotal-url-{result.status.replace('_', '-')}",
+                severity=severity,
+                description=(
+                    f"VirusTotal reported {result.status.replace('_', ' ')} URL "
+                    f"reputation"
+                    + (
+                        f" ({result.detection_ratio} detections)."
+                        if result.detection_ratio
+                        else "."
+                    )
+                ),
+                evidence=result.redacted_url,
+            )
+        )
+        virustotal_findings.append(
+            VirusTotalAlertFinding(
+                threat_category=category,
+                severity=severity,
+                detection_ratio=result.detection_ratio,
+                scan_status=result.status,
+                redacted_url=result.redacted_url,
+                document_event_reference=str(request.state.request_id),
+                timestamp=result.checked_at,
+            )
+        )
+
     all_indicators = {
         indicator.rule_id: indicator
-        for indicator in (*preflight_indicators, *extracted_indicators)
+        for indicator in (
+            *preflight_indicators,
+            *extracted_indicators,
+            *local_url_indicators,
+            *virustotal_indicators,
+        )
     }
     security_indicators = list(all_indicators.values())
     alert_id = _record_document_security_result(
-        request,
         user,
         indicators=security_indicators,
         artifact_sha256=artifact_sha256,
+        virustotal_findings=virustotal_findings,
     )
     if should_block_ingestion(security_indicators):
+        url_scan = url_scan.model_copy(update={"ingestion_blocked": True})
         AuditLog().record(
             request_id=request.state.request_id,
             actor_id=user.user_id,
@@ -293,14 +457,24 @@ async def ingest_knowledge_document(
                 "severity": highest_severity(security_indicators),
             },
         )
-        raise HTTPException(
-            status_code=422,
-            detail=(
+        return _blocked_ingestion_response(
+            (
                 "Document security inspection found high-risk indicators. "
                 "The document was blocked before indexing; "
                 f"security alert {alert_id} was created."
             ),
+            alert_id=alert_id,
+            url_scan=url_scan,
         )
+
+    try:
+        chunks = (
+            chunks_from_pdf_sections(normalized_sections, metadata)
+            if suffix == ".pdf"
+            else chunks_from_sections(normalized_sections, metadata)
+        )
+    except DocumentIngestionError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     document = StoredKnowledgeDocument(
         **metadata.__dict__,
@@ -310,12 +484,12 @@ async def ingest_knowledge_document(
     )
     index = get_knowledge_index()
     try:
-        index.add_chunks(chunks)
         store.add_document(document, chunks)
+        index.add_chunks(chunks)
     except DuplicateKnowledgeDocumentError as error:
-        index.delete_document(document_id)
         raise HTTPException(status_code=409, detail=str(error)) from error
     except Exception as error:
+        store.delete_document(document_id)
         index.delete_document(document_id)
         logger.exception("Failed to index uploaded document %s", document_id)
         raise HTTPException(
@@ -337,6 +511,7 @@ async def ingest_knowledge_document(
         document=_summary(document),
         security_status="alert_created" if alert_id else "clear",
         security_alert_id=alert_id,
+        url_scan=url_scan,
     )
 
 

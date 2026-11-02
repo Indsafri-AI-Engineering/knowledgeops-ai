@@ -44,6 +44,27 @@ def test_threat_scan_api_requires_security_capability(monkeypatch, tmp_path) -> 
     assert threat_component["external_connection"] is False
 
 
+def test_system_status_reports_virustotal_without_exposing_missing_key(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
+    monkeypatch.delenv("VIRUSTOTAL_API_KEY", raising=False)
+
+    client = TestClient(app)
+    _login(client, "demo-security")
+    response = client.get("/api/v1/system/status")
+
+    assert response.status_code == 200
+    status = response.json()["virustotal"]
+    assert status["enabled"] is True
+    assert status["api_key_configured"] is False
+    assert status["connection_status"] == "missing_api_key"
+    assert status["failure_policy"] == "fail_open"
+    assert "fictional-test-key" not in response.text
+
+
 def test_url_scan_returns_traceable_local_indicators_without_fetch_or_storage(
     monkeypatch,
     tmp_path,
