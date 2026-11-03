@@ -2,10 +2,12 @@ import json
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
-from backend.app.integrations.n8n import N8nAlertNotifier
+from backend.app.integrations.n8n import N8nAlertNotifier, N8nJiraNotifier
 from backend.app.main import app
+from backend.app.threat_detection.alerts import create_security_alert
 from backend.app.threat_detection.monitor import reset_monitor_state
 
 
@@ -102,7 +104,7 @@ def test_repeated_auth_denials_generate_anomaly_alert(monkeypatch, tmp_path) -> 
     assert "testclient" not in alert_file.read_text(encoding="utf-8")
 
 
-def test_n8n_notifier_sends_only_minimal_alert_metadata(monkeypatch) -> None:
+def test_n8n_notifier_sends_only_minimal_alert_metadata(monkeypatch, caplog) -> None:
     monkeypatch.setenv(
         "N8N_ALERT_WEBHOOK_URL",
         "https://automation.example.test/webhook/security-alerts",
@@ -132,12 +134,197 @@ def test_n8n_notifier_sends_only_minimal_alert_metadata(monkeypatch) -> None:
     assert payload["rule_ids"] == ["document-secret-assignment"]
     assert "evidence" not in payload
     assert "document_text" not in payload
+    assert "test-webhook-token" not in caplog.text
     assert captured["headers"]["Authorization"] == "Bearer test-webhook-token"
 
 
 def test_n8n_notifier_rejects_insecure_remote_webhook(monkeypatch) -> None:
     monkeypatch.setenv("N8N_ALERT_WEBHOOK_URL", "http://automation.example.test/hook")
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "test-webhook-token")
     assert not N8nAlertNotifier().configured
+
+
+def test_n8n_alert_notifier_requires_authentication(monkeypatch, caplog) -> None:
+    monkeypatch.setenv(
+        "N8N_ALERT_WEBHOOK_URL",
+        "https://automation.example.test/webhook/security-alerts",
+    )
+    monkeypatch.delenv("N8N_ALERT_WEBHOOK_TOKEN", raising=False)
+
+    def unexpected_post(*args, **kwargs):
+        raise AssertionError("An unauthenticated security webhook must not be called.")
+
+    monkeypatch.setattr(httpx, "post", unexpected_post)
+    notifier = N8nAlertNotifier()
+    result = notifier.notify_security_alert(
+        alert_id="alert-id",
+        alert_type="document_security",
+        severity="high",
+        detector_version="test-v1",
+        rule_ids=["synthetic-test-rule"],
+        occurred_at=datetime.now(UTC),
+    )
+
+    assert not notifier.configured
+    assert result == "failed"
+    assert "test-webhook-token" not in caplog.text
+
+
+def test_n8n_alert_notifier_reports_invalid_authentication(monkeypatch, caplog) -> None:
+    monkeypatch.setenv(
+        "N8N_ALERT_WEBHOOK_URL",
+        "https://automation.example.test/webhook/security-alerts",
+    )
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "test-webhook-token")
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *args, **kwargs: httpx.Response(401),
+    )
+
+    result = N8nAlertNotifier().notify_security_alert(
+        alert_id="alert-id",
+        alert_type="document_security",
+        severity="high",
+        detector_version="test-v1",
+        rule_ids=["synthetic-test-rule"],
+        occurred_at=datetime.now(UTC),
+    )
+
+    assert result == "failed"
+    assert "test-webhook-token" not in caplog.text
+
+
+@pytest.mark.parametrize("error_type", [httpx.ConnectError, httpx.ReadTimeout])
+def test_n8n_alert_notifier_handles_unavailable_webhook(
+    monkeypatch,
+    error_type: type[httpx.RequestError],
+) -> None:
+    monkeypatch.setenv(
+        "N8N_ALERT_WEBHOOK_URL",
+        "https://automation.example.test/webhook/security-alerts",
+    )
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "test-webhook-token")
+
+    def unavailable(*args, **kwargs):
+        raise error_type("synthetic webhook unavailable")
+
+    monkeypatch.setattr(httpx, "post", unavailable)
+    result = N8nAlertNotifier().notify_security_alert(
+        alert_id="alert-id",
+        alert_type="document_security",
+        severity="high",
+        detector_version="test-v1",
+        rule_ids=["synthetic-test-rule"],
+        occurred_at=datetime.now(UTC),
+    )
+
+    assert result == "failed"
+
+
+@pytest.mark.parametrize("severity", ["critical", "high", "medium", "low"])
+def test_n8n_alert_notifier_forwards_severity_for_workflow_routing(
+    monkeypatch,
+    severity: str,
+) -> None:
+    monkeypatch.setenv(
+        "N8N_ALERT_WEBHOOK_URL",
+        "https://automation.example.test/webhook/security-alerts",
+    )
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "test-webhook-token")
+    captured: dict[str, object] = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(url=url, **kwargs)
+        return httpx.Response(202)
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    result = N8nAlertNotifier().notify_security_alert(
+        alert_id="alert-id",
+        alert_type="document_security",
+        severity=severity,
+        detector_version="test-v1",
+        rule_ids=["synthetic-test-rule"],
+        occurred_at=datetime.now(UTC),
+    )
+
+    assert result == "sent"
+    assert captured["json"]["severity"] == severity
+
+
+def test_critical_alert_is_stored_and_notified(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("SECURITY_ALERTS_PATH", str(tmp_path / "alerts.json"))
+    monkeypatch.setenv(
+        "N8N_ALERT_WEBHOOK_URL",
+        "https://automation.example.test/webhook/security-alerts",
+    )
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "test-webhook-token")
+    captured: dict[str, object] = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(url=url, **kwargs)
+        return httpx.Response(202)
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    alert = create_security_alert(
+        alert_type="threat_indicator",
+        severity="critical",
+        title="Synthetic critical alert",
+        summary="Synthetic notification test.",
+        actor_id=None,
+        detector_version="test-v1",
+        indicators=[],
+    )
+    persisted = json.loads((tmp_path / "alerts.json").read_text(encoding="utf-8"))
+
+    assert alert.severity == "critical"
+    assert alert.notification_status == "sent"
+    assert persisted[str(alert.alert_id)]["severity"] == "critical"
+    assert captured["url"] == "https://automation.example.test/webhook/security-alerts"
+    assert captured["json"]["severity"] == "critical"
+
+
+def test_security_and_jira_notifications_use_independent_webhooks(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "N8N_ALERT_WEBHOOK_URL",
+        "https://automation.example.test/webhook/security-alerts",
+    )
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "security-test-token")
+    monkeypatch.setenv(
+        "N8N_JIRA_WEBHOOK_URL",
+        "https://automation.example.test/webhook/jira",
+    )
+    monkeypatch.setenv("N8N_JIRA_WEBHOOK_TOKEN", "jira-test-token")
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return httpx.Response(202)
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    occurred_at = datetime.now(UTC)
+
+    security_status = N8nAlertNotifier().notify_security_alert(
+        alert_id="alert-id",
+        alert_type="document_security",
+        severity="high",
+        detector_version="test-v1",
+        rule_ids=["synthetic-test-rule"],
+        occurred_at=occurred_at,
+    )
+    jira_status = N8nJiraNotifier().notify_issue_created(
+        issue_key="OPS-16",
+        project_key="OPS",
+        issue_url="https://example.atlassian.net/browse/OPS-16",
+    )
+
+    assert security_status == jira_status == "sent"
+    assert [url for url, _ in calls] == [
+        "https://automation.example.test/webhook/security-alerts",
+        "https://automation.example.test/webhook/jira",
+    ]
+    assert calls[0][1]["json"]["event"] == "knowledgeops.security.alert"
+    assert calls[1][1]["json"]["event"] == "knowledgeops.jira.issue_created"
 
 
 def test_failed_n8n_delivery_is_recorded_on_the_alert(monkeypatch, tmp_path) -> None:
@@ -149,6 +336,7 @@ def test_failed_n8n_delivery_is_recorded_on_the_alert(monkeypatch, tmp_path) -> 
         "N8N_ALERT_WEBHOOK_URL",
         "https://automation.example.test/webhook/security-alerts",
     )
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "test-webhook-token")
     monkeypatch.setattr(
         httpx,
         "post",
@@ -180,6 +368,7 @@ def test_approved_response_dispatch_requires_acknowledgement_and_confirmation(
         "N8N_ALERT_WEBHOOK_URL",
         "https://automation.example.test/webhook/security-alerts",
     )
+    monkeypatch.setenv("N8N_ALERT_WEBHOOK_TOKEN", "test-webhook-token")
     posted_payloads: list[dict[str, object]] = []
 
     def fake_post(url, **kwargs):

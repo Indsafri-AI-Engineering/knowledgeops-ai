@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 AlertStatus = Literal["open", "acknowledged", "resolved", "false_positive"]
-AlertSeverity = Literal["info", "low", "medium", "high"]
+AlertSeverity = Literal["info", "low", "medium", "high", "critical"]
 AlertType = Literal[
     "document_security",
     "threat_indicator",

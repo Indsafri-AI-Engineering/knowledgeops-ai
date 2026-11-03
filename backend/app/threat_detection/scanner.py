@@ -35,7 +35,7 @@ class ThreatScanResult(BaseModel):
 
 def _severity(indicators: list[ThreatIndicator]) -> Severity:
     severities = [indicator.severity for indicator in indicators]
-    for severity in ("high", "medium", "low", "info"):
+    for severity in ("critical", "high", "medium", "low", "info"):
         if severity in severities:
             return severity
     return "info"

@@ -116,7 +116,12 @@ class N8nAlertNotifier:
 
     @property
     def configured(self) -> bool:
-        if not self._webhook_url:
+        if not self._webhook_url or not self._webhook_token:
+            return False
+        if any(
+            character.isspace() or ord(character) < 32 or ord(character) == 127
+            for character in self._webhook_token
+        ):
             return False
         try:
             parsed = urlsplit(self._webhook_url)
@@ -190,8 +195,11 @@ class N8nAlertNotifier:
         rule_ids: list[str],
         occurred_at: datetime,
     ) -> str:
-        if not self.configured:
+        if not self._webhook_url:
             return "not_configured"
+        if not self.configured:
+            logger.error("n8n security alert webhook configuration is invalid or incomplete.")
+            return "failed"
         headers = {"Accept": "application/json"}
         if self._webhook_token:
             headers["Authorization"] = f"Bearer {self._webhook_token}"

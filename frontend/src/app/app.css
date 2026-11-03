@@ -120,6 +120,23 @@ h2 {
   text-transform: uppercase;
 }
 
+.status-critical,
+.status-high {
+  color: #8a1c24;
+  background: #ffe4e6;
+}
+
+.status-medium {
+  color: #714b00;
+  background: #fff3ce;
+}
+
+.status-low,
+.status-info {
+  color: #164b88;
+  background: #e5f1ff;
+}
+
 .status-local {
   color: #164b88;
   background: #e5f1ff;

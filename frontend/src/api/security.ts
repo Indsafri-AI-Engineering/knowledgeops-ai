@@ -14,7 +14,7 @@ export type SecurityAlert = {
     | "threat_indicator"
     | "authentication_anomaly"
     | "authorization_anomaly";
-  severity: "info" | "low" | "medium" | "high";
+  severity: "info" | "low" | "medium" | "high" | "critical";
   title: string;
   summary: string;
   status: SecurityAlertStatus;
@@ -24,14 +24,14 @@ export type SecurityAlert = {
   artifact_sha256: string | null;
   indicators: Array<{
     rule_id: string;
-    severity: "info" | "low" | "medium" | "high";
+    severity: "info" | "low" | "medium" | "high" | "critical";
     description: string;
     evidence_redacted: boolean;
   }>;
   virustotal_findings: Array<{
     provider: "VirusTotal";
     threat_category: "Malicious URL" | "Suspicious URL" | "Unknown URL reputation";
-    severity: "info" | "low" | "medium" | "high";
+    severity: "info" | "low" | "medium" | "high" | "critical";
     detection_ratio: string | null;
     scan_status: string;
     redacted_url: string;

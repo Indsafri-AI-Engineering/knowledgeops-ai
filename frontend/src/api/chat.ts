@@ -33,7 +33,7 @@ export type SalesforceLoginGuide = {
 
 export type ThreatIndicator = {
   rule_id: string;
-  severity: "info" | "low" | "medium" | "high";
+  severity: "info" | "low" | "medium" | "high" | "critical";
   description: string;
   evidence: string;
 };
@@ -45,7 +45,7 @@ export type ThreatScanResult = {
   artifact_sha256: string;
   submitted_reference: string | null;
   verdict: "suspicious" | "no-known-indicator";
-  severity: "info" | "low" | "medium" | "high";
+  severity: "info" | "low" | "medium" | "high" | "critical";
   indicators: ThreatIndicator[];
   extracted_urls: string[];
   detector_version: string;

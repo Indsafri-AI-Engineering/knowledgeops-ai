@@ -76,9 +76,10 @@ Knowledge uploads receive two inspections: a bounded raw-file preflight before
 document parsers run, then a security scan of extracted text before any chunk
 is indexed or sent to an embedding provider. High-severity credential/key
 indicators block ingestion by default. Change
-`THREAT_INGESTION_BLOCK_SEVERITY` (`info`, `low`, `medium`, `high`) only after
-reviewing false-positive and data-handling implications. Lower-severity
-findings create alerts but do not block by default.
+`THREAT_INGESTION_BLOCK_SEVERITY` (`info`, `low`, `medium`, `high`,
+`critical`) only after reviewing false-positive and data-handling
+implications. Lower-severity findings create alerts but do not block by
+default.
 
 Requests are size-limited. Alerts retain rule IDs, descriptions, severity,
 detector version, actor, and a document fingerprint; matched values, source
@@ -90,14 +91,35 @@ generate an alert using the configurable
 are hashed before audit storage. This event monitor is in-process and its
 rolling counter resets on restart.
 
-An optional `N8N_ALERT_WEBHOOK_URL` enables outbound alert notifications.
-HTTPS is required except for localhost development; an optional
-`N8N_ALERT_WEBHOOK_TOKEN` is sent as a bearer token. The webhook receives only
-alert ID, type, severity, detector version, rule IDs, and timestamp. Delivery
-status is retained on the alert. An authorized analyst must acknowledge an
-alert and explicitly confirm a response-workflow request before the app
-dispatches the minimal event to n8n. The app does not accept inbound n8n
-response commands or perform automatic remediation.
+Configure both `N8N_ALERT_WEBHOOK_URL` and `N8N_ALERT_WEBHOOK_TOKEN` to enable
+automatic security-alert notifications. Security events use this dedicated
+webhook and are never sent to the Jira webhook. The backend sends the token as
+`Authorization: Bearer <token>`; HTTPS is required except for localhost
+development. A configured URL without a token is treated as a failed
+notification and is not called.
+
+The `knowledgeops.security.alert` payload contains only the event name, alert
+ID, type, severity, detector version, rule IDs, and timestamp. It contains no
+document text, extracted content, credentials, matched secrets, or file
+contents. Configure recipient groups and severity routing in n8n: critical and
+high to the Administrator and Security Team, medium to the Security Team, and
+low to dashboard logging with an optional summary notification. Keep group
+addresses or identifiers in n8n configuration, not in this app or in webhook
+payloads.
+
+`notification_status` on an alert is `sent` only when the webhook responds
+with a successful 2xx status; it confirms webhook delivery, not downstream
+email or chat delivery. A missing URL returns `not_configured`; missing/invalid
+credentials, non-2xx responses (including invalid authentication), connection
+errors, and timeouts return `failed`. Alert creation and storage are not rolled
+back when notification delivery fails. The backend makes one bounded request
+and does not retry.
+
+An authorized analyst must acknowledge an alert and explicitly confirm a
+response-workflow request before the app dispatches that separate event to
+n8n. Notifications do not automatically remediate threats, delete documents,
+block users, resolve alerts, or create Jira issues. The app does not accept
+inbound n8n response commands.
 
 An optional `N8N_JIRA_WEBHOOK_URL` sends a `knowledgeops.jira.issue_created`
 event only after Jira confirms issue creation. The payload contains the event,

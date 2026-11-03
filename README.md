@@ -950,12 +950,14 @@ the Threat analysis panel.
 Set `SECURITY_ALERTS_PATH` to an ignored runtime JSON path. Tune
 `SECURITY_DENIAL_THRESHOLD`, `SECURITY_DENIAL_WINDOW_SECONDS`, and
 `SECURITY_DENIAL_ALERT_COOLDOWN_SECONDS` for the expected local request rate.
-Set `N8N_ALERT_WEBHOOK_URL` and optionally `N8N_ALERT_WEBHOOK_TOKEN` to enable
-notifications; use HTTPS except for localhost development. Only alert
-metadata and rule IDs are sent to n8n.
-For Jira issue-created events, configure `N8N_JIRA_WEBHOOK_URL` and optionally
-`N8N_JIRA_WEBHOOK_TOKEN`. Jira creation remains successful if the subsequent
-notification fails; the API response reports the notification outcome.
+Set both `N8N_ALERT_WEBHOOK_URL` and `N8N_ALERT_WEBHOOK_TOKEN` to enable
+authenticated security notifications; use HTTPS except for localhost
+development. Only alert metadata and rule IDs are sent to n8n. Configure
+Administrator/Security Team groups and severity routing in the n8n workflow.
+For independent Jira issue-created events, configure
+`N8N_JIRA_WEBHOOK_URL` and its separate `N8N_JIRA_WEBHOOK_TOKEN`. Jira creation
+and security-alert storage are not rolled back if their subsequent webhook
+notification fails; see [n8n setup](docs/N8N_SETUP.md) for workflow details.
 
 The local rules are deterministic indicators, not antivirus or malware
 detonation. VirusTotal supplies external URL reputation only; it does not

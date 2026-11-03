@@ -1,0 +1,291 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="1480" viewBox="0 0 1720 1480" role="img" aria-labelledby="title description">
+  <title id="title">KnowledgeOps AI process and architecture</title>
+  <desc id="description">Architecture workflow showing Keycloak OIDC authentication, backend-enforced role-based access control for uploads and knowledge scopes, security checks and optional VirusTotal URL reputation, MongoDB Atlas storage and embeddings, plus permission-filtered semantic, BM25, and hybrid retrieval.</desc>
+  <defs>
+    <linearGradient id="header" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#102238"/>
+      <stop offset="1" stop-color="#183a61"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#eef6ff"/>
+      <stop offset="1" stop-color="#dcecff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#effaf4"/>
+      <stop offset="1" stop-color="#dff5e8"/>
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#102238" flood-opacity=".10"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#66809e"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3477c8"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c34e59"/>
+    </marker>
+    <style>
+      text { font-family: Inter, "Segoe UI", Arial, sans-serif; fill: #20344c; }
+      .title { fill: #fff; font-size: 32px; font-weight: 750; letter-spacing: -.5px; }
+      .subtitle { fill: #c5d5e8; font-size: 15px; }
+      .section { fill: #153453; font-size: 20px; font-weight: 750; }
+      .section-note { fill: #647991; font-size: 12px; }
+      .node { fill: #fff; stroke: #d3deea; stroke-width: 1.4; rx: 13; filter: url(#shadow); }
+      .node-blue { fill: url(#blue); stroke: #a9c8ea; }
+      .node-green { fill: url(#green); stroke: #a7d8b8; }
+      .node-red { fill: #fff3f2; stroke: #e7b6b5; }
+      .node-dark { fill: #14263c; stroke: #35506f; }
+      .node-title { font-size: 15px; font-weight: 750; }
+      .node-title-light { fill: #eff5fd; font-size: 15px; font-weight: 750; }
+      .body { fill: #536981; font-size: 12px; }
+      .body-light { fill: #b7c8db; font-size: 12px; }
+      .small { fill: #71859b; font-size: 10px; }
+      .chip { font-size: 10px; font-weight: 700; }
+      .line { fill: none; stroke: #66809e; stroke-width: 2; marker-end: url(#arrow); }
+      .line-blue { fill: none; stroke: #3477c8; stroke-width: 2.2; marker-end: url(#arrow-blue); }
+      .line-red { fill: none; stroke: #c34e59; stroke-width: 2.2; marker-end: url(#arrow-red); }
+      .dash { stroke-dasharray: 6 6; }
+      .lane { fill: #f7f9fc; stroke: #e3eaf2; stroke-width: 1; rx: 18; }
+      .table-head { fill: #e9f0f8; }
+      .table-row { fill: #fff; }
+      .db-label { fill: #315d8b; font-size: 11px; font-weight: 700; }
+      .legend { fill: #5e7188; font-size: 11px; }
+    </style>
+  </defs>
+
+  <rect width="1720" height="1480" fill="#f3f6fa"/>
+  <rect x="0" y="0" width="1720" height="118" fill="url(#header)"/>
+  <text x="54" y="52" class="title">KnowledgeOps AI</text>
+  <text x="54" y="82" class="subtitle">Process workflow and system architecture</text>
+  <text x="1665" y="57" text-anchor="end" class="subtitle">OIDC / RBAC / SECURITY / ATLAS / RETRIEVAL</text>
+  <text x="1665" y="82" text-anchor="end" class="subtitle">Implementation-oriented overview</text>
+
+  <rect x="38" y="145" width="1644" height="668" class="lane"/>
+  <text x="64" y="181" class="section">A. Document ingestion and security workflow</text>
+  <text x="1654" y="180" text-anchor="end" class="section-note">One file per API request; batches are processed sequentially</text>
+
+  <!-- Ingestion first row -->
+  <rect x="64" y="222" width="230" height="142" class="node"/>
+  <text x="84" y="253" class="node-title">1 · Authenticated operator</text>
+  <text x="84" y="280" class="body">
+    <tspan x="84" dy="0">Signs in through Keycloak OIDC.</tspan>
+    <tspan x="84" dy="19">Selects files and target scope.</tspan>
+    <tspan x="84" dy="19">JWT groups map to capabilities.</tspan>
+    <tspan x="84" dy="19">Upload requires knowledge:manage.</tspan>
+  </text>
+
+  <path d="M294 293 H326" class="line"/>
+
+  <rect x="330" y="222" width="270" height="142" class="node node-blue"/>
+  <text x="350" y="253" class="node-title">2 · React upload UI</text>
+  <text x="350" y="280" class="body">
+    <tspan x="350" dy="0">Drop/browse up to 50 files.</tspan>
+    <tspan x="350" dy="19">Shows file sizes and scope.</tspan>
+    <tspan x="350" dy="19">Submits files one-by-one.</tspan>
+    <tspan x="350" dy="24">Uses an honest indeterminate loader.</tspan>
+  </text>
+
+  <path d="M600 293 H632" class="line"/>
+
+  <rect x="636" y="222" width="270" height="142" class="node"/>
+  <text x="656" y="253" class="node-title">3 · FastAPI upload API</text>
+  <text x="656" y="280" class="body">
+    <tspan x="656" dy="0">POST /api/v1/knowledge/documents</tspan>
+    <tspan x="656" dy="19">Validates bearer token and capability.</tspan>
+    <tspan x="656" dy="19">Requires ingestion enabled.</tspan>
+    <tspan x="656" dy="24">Returns result or structured error.</tspan>
+  </text>
+
+  <path d="M906 293 H938" class="line"/>
+
+  <rect x="942" y="222" width="300" height="142" class="node"/>
+  <text x="962" y="253" class="node-title">4 · Validate and extract</text>
+  <text x="962" y="280" class="body">
+    <tspan x="962" dy="0">Supported formats; maximum 10 MiB.</tspan>
+    <tspan x="962" dy="19">SHA-256 fingerprint and default title.</tspan>
+    <tspan x="962" dy="19">Format-specific text/link extraction.</tspan>
+    <tspan x="962" dy="24">Original bytes are not retained.</tspan>
+  </text>
+
+  <path d="M1242 293 H1274" class="line"/>
+
+  <rect x="1278" y="222" width="360" height="142" class="node node-blue"/>
+  <text x="1298" y="253" class="node-title">5 · Local security analysis</text>
+  <text x="1298" y="280" class="body">
+    <tspan x="1298" dy="0">Preflight checks, extracted-text indicators,</tspan>
+    <tspan x="1298" dy="19">URL discovery and local URL heuristics.</tspan>
+    <tspan x="1298" dy="19">Sensitive-content findings can suppress</tspan>
+    <tspan x="1298" dy="19">external URL lookups.</tspan>
+  </text>
+
+  <!-- External URL reputation and policy gate -->
+  <path d="M1458 364 V402" class="line-blue"/>
+  <rect x="1278" y="406" width="360" height="118" class="node node-dark"/>
+  <text x="1298" y="437" class="node-title-light">VirusTotal URL reports</text>
+  <text x="1298" y="463" class="body-light">
+    <tspan x="1298" dy="0">Eligible extracted URLs only; backend API key.</tspan>
+    <tspan x="1298" dy="18">Privacy filters, limits, timeout and cache apply.</tspan>
+    <tspan x="1298" dy="18">Document file bytes are not submitted.</tspan>
+  </text>
+  <text x="1458" y="393" text-anchor="middle" class="chip" fill="#3477c8">eligible URLs</text>
+
+  <path d="M1278 467 H1124" class="line-blue"/>
+  <rect x="824" y="412" width="296" height="110" class="node"/>
+  <text x="848" y="445" class="node-title">6 · Ingestion policy</text>
+  <text x="848" y="471" class="body">
+    <tspan x="848" dy="0">Severity threshold + provider policy.</tspan>
+    <tspan x="848" dy="19">Malicious URL → high severity.</tspan>
+    <tspan x="848" dy="19">Unknown is never treated as clean.</tspan>
+  </text>
+
+  <path d="M824 467 H758 V572" class="line-blue"/>
+  <text x="775" y="548" class="chip" fill="#3477c8">permitted</text>
+  <path d="M1120 467 H1164" class="line-red"/>
+  <text x="1142" y="451" text-anchor="middle" class="chip" fill="#b3434d">blocked</text>
+
+  <rect x="1168" y="426" width="470" height="98" class="node node-red"/>
+  <text x="1190" y="457" class="node-title">Blocked path</text>
+  <text x="1190" y="482" class="body">
+    <tspan x="1190" dy="0">No chunking, persistence, or indexing.</tspan>
+    <tspan x="1190" dy="18">Return blocked response; create redacted security alert and audit event.</tspan>
+  </text>
+
+  <!-- Allowed persistence path -->
+  <rect x="544" y="576" width="300" height="144" class="node node-green"/>
+  <text x="566" y="608" class="node-title">7 · Chunk and map metadata</text>
+  <text x="566" y="635" class="body">
+    <tspan x="566" dy="0">Split normalized sections into chunks.</tspan>
+    <tspan x="566" dy="19">Attach title, section, source and scope.</tspan>
+    <tspan x="566" dy="19">Chunk IDs link back to a document.</tspan>
+    <tspan x="566" dy="23">Duplicate file hash → HTTP 409.</tspan>
+  </text>
+
+  <path d="M844 648 H878" class="line-blue"/>
+
+  <rect x="882" y="576" width="370" height="144" class="node node-green"/>
+  <text x="904" y="608" class="node-title">8 · MongoDB Atlas repository</text>
+  <rect x="904" y="625" width="150" height="66" rx="8" fill="#fff" stroke="#bfd5c8"/>
+  <text x="919" y="650" class="db-label">knowledge_documents</text>
+  <text x="919" y="671" class="small">metadata + SHA-256</text>
+  <rect x="1067" y="625" width="163" height="66" rx="8" fill="#fff" stroke="#bfd5c8"/>
+  <text x="1082" y="650" class="db-label">knowledge_chunks</text>
+  <text x="1082" y="671" class="small">text + scope + vectors</text>
+
+  <path d="M1252 648 H1286" class="line-blue"/>
+
+  <rect x="1290" y="576" width="348" height="144" class="node node-green"/>
+  <text x="1312" y="608" class="node-title">9 · Embeddings and vector index</text>
+  <text x="1312" y="635" class="body">
+    <tspan x="1312" dy="0">Embedding model creates a vector per chunk.</tspan>
+    <tspan x="1312" dy="19">Dimension/model identity are checked.</tspan>
+    <tspan x="1312" dy="19">Vectors are upserted to knowledge_chunks.</tspan>
+    <tspan x="1312" dy="23">Atlas index must be READY/queryable.</tspan>
+  </text>
+  <path d="M1290 693 H1252" class="line-blue"/>
+  <text x="1270" y="711" text-anchor="middle" class="small">vector upsert</text>
+
+  <path d="M694 720 V754 H1066 V720" class="line"/>
+  <rect x="820" y="747" width="492" height="42" rx="10" fill="#edf2f7" stroke="#d8e1eb"/>
+  <text x="1066" y="773" text-anchor="middle" class="small">Persistence succeeds before indexing; indexing failure triggers best-effort rollback.</text>
+
+  <!-- Retrieval workflow -->
+  <rect x="38" y="838" width="1644" height="494" class="lane"/>
+  <text x="64" y="875" class="section">B. OIDC/RBAC permission-filtered search and answer workflow</text>
+  <text x="1654" y="874" text-anchor="end" class="section-note">Semantic, keyword, or hybrid mode</text>
+
+  <rect x="64" y="944" width="240" height="136" class="node"/>
+  <text x="84" y="976" class="node-title">1 · User asks a question</text>
+  <text x="84" y="1003" class="body">
+    <tspan x="84" dy="0">Authenticated request enters</tspan>
+    <tspan x="84" dy="19">the chat experience.</tspan>
+    <tspan x="84" dy="24">Question is not persisted as</tspan>
+    <tspan x="84" dy="18">conversation history.</tspan>
+  </text>
+
+  <path d="M304 1012 H338" class="line"/>
+
+  <rect x="342" y="944" width="282" height="152" class="node node-blue"/>
+  <text x="362" y="976" class="node-title">2 · Identity-derived RBAC scopes</text>
+  <text x="362" y="1003" class="body">
+    <tspan x="362" dy="0">JWT groups map to allowlisted capabilities.</tspan>
+    <tspan x="362" dy="18">Scopes derive from read permissions.</tspan>
+    <tspan x="362" dy="18">General / IT / Recruitment / HR.</tspan>
+    <tspan x="362" dy="18">Client cannot grant its own scopes.</tspan>
+    <tspan x="362" dy="18">Unauthorized scope returns HTTP 403.</tspan>
+  </text>
+
+  <path d="M624 1012 H658" class="line"/>
+
+  <rect x="662" y="944" width="250" height="136" class="node"/>
+  <text x="682" y="976" class="node-title">3 · Retrieval service</text>
+  <text x="682" y="1003" class="body">
+    <tspan x="682" dy="0">Selects vector, keyword, or</tspan>
+    <tspan x="682" dy="19">hybrid mode.</tspan>
+    <tspan x="682" dy="24">Cache key includes question,</tspan>
+    <tspan x="682" dy="18">mode, limit, and scopes.</tspan>
+  </text>
+
+  <path d="M912 980 H950 V934 H986" class="line-blue"/>
+  <path d="M912 1044 H950 V1120 H986" class="line"/>
+
+  <rect x="990" y="884" width="290" height="126" class="node node-blue"/>
+  <text x="1010" y="916" class="node-title">4a · Atlas semantic search</text>
+  <text x="1010" y="943" class="body">
+    <tspan x="1010" dy="0">Embed question; query Atlas vector index.</tspan>
+    <tspan x="1010" dy="19">Scope filter runs in the database.</tspan>
+    <tspan x="1010" dy="19">Application verifies returned scope again.</tspan>
+  </text>
+
+  <rect x="990" y="1058" width="290" height="126" class="node"/>
+  <text x="1010" y="1090" class="node-title">4b · Local BM25 keyword search</text>
+  <text x="1010" y="1117" class="body">
+    <tspan x="1010" dy="0">Ranks exact token matches and term rarity.</tspan>
+    <tspan x="1010" dy="19">Filters eligible chunks by scope first.</tspan>
+    <tspan x="1010" dy="19">No separate Atlas BM25 index is used.</tspan>
+  </text>
+
+  <path d="M1280 947 H1320 V1006 H1350" class="line-blue"/>
+  <path d="M1280 1121 H1320 V1062 H1350" class="line"/>
+
+  <rect x="1354" y="948" width="282" height="172" class="node node-dark"/>
+  <text x="1376" y="980" class="node-title-light">5 · Hybrid fusion</text>
+  <text x="1376" y="1008" class="body-light">
+    <tspan x="1376" dy="0">Reciprocal Rank Fusion combines</tspan>
+    <tspan x="1376" dy="19">the semantic and BM25 rankings.</tspan>
+    <tspan x="1376" dy="25">Selects the final top chunks with</tspan>
+    <tspan x="1376" dy="19">scope checks still enforced.</tspan>
+  </text>
+  <rect x="1376" y="1080" width="152" height="22" rx="11" fill="#22415f"/>
+  <text x="1452" y="1095" text-anchor="middle" class="chip" fill="#cfe2fa">rank fusion · not score averaging</text>
+
+  <path d="M1495 1120 V1215 H1228" class="line-blue"/>
+  <rect x="840" y="1200" width="388" height="98" class="node node-green"/>
+  <text x="862" y="1232" class="node-title">6 · Response with evidence</text>
+  <text x="862" y="1258" class="body">
+    <tspan x="862" dy="0">Answer uses retrieved chunks and source references.</tspan>
+    <tspan x="862" dy="18">If retrieval is empty, the app abstains.</tspan>
+  </text>
+
+  <path d="M990 948 H958 V760 H1066" class="line dash"/>
+  <text x="973" y="854" class="small" transform="rotate(-90 973 854)">reads stored text + vectors</text>
+  <path d="M990 1120 H948 V783 H1066" class="line dash"/>
+  <text x="929" y="914" class="small" transform="rotate(-90 929 914)">scope-filtered corpus</text>
+
+  <!-- Operational boundaries -->
+  <rect x="38" y="1360" width="1644" height="88" rx="14" fill="#fff" stroke="#d8e1eb"/>
+  <text x="62" y="1390" class="node-title">Operational boundaries</text>
+  <text x="62" y="1416" class="body">
+    <tspan x="62" dy="0">RBAC is enforced by backend-validated OIDC groups and configured capabilities; UI scope choices are not authorization. VirusTotal checks eligible extracted URLs, not uploaded files. Provider outages follow configured fail_open/fail_closed behavior. No real-time stage events, upload cancellation, or persistent scan-history API is currently shown.</tspan>
+  </text>
+
+  <!-- Legend -->
+  <circle cx="64" cy="1467" r="6" fill="#3477c8"/>
+  <text x="78" y="1471" class="legend">API / external service</text>
+  <circle cx="245" cy="1467" r="6" fill="#42a66c"/>
+  <text x="259" y="1471" class="legend">permitted storage/index path</text>
+  <circle cx="490" cy="1467" r="6" fill="#c34e59"/>
+  <text x="504" y="1471" class="legend">blocked path</text>
+  <text x="1655" y="1471" text-anchor="end" class="legend">KnowledgeOps AI · Architecture workflow</text>
+</svg>

@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 DETECTOR_VERSION = "fictional-rules-v1"
-Severity = Literal["info", "low", "medium", "high"]
+Severity = Literal["info", "low", "medium", "high", "critical"]
 
 
 class ThreatIndicator(BaseModel):

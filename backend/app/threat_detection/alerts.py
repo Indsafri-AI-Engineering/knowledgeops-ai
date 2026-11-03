@@ -16,6 +16,7 @@ _SEVERITY_ORDER: dict[str, int] = {
     "low": 1,
     "medium": 2,
     "high": 3,
+    "critical": 4,
 }
 
 
@@ -35,7 +36,7 @@ def should_block_ingestion(indicators: list[ThreatIndicator]) -> bool:
     ).strip().lower()
     if configured_threshold not in _SEVERITY_ORDER:
         raise RuntimeError(
-            "THREAT_INGESTION_BLOCK_SEVERITY must be info, low, medium, or high."
+            "THREAT_INGESTION_BLOCK_SEVERITY must be info, low, medium, high, or critical."
         )
     threshold = _SEVERITY_ORDER[configured_threshold]
     return any(
