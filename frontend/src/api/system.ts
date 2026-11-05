@@ -24,9 +24,7 @@ export type SystemStatus = {
   };
 };
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
-).replace(/\/+$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 export async function getSystemStatus(): Promise<SystemStatus> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/system/status`);

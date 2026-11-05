@@ -74,9 +74,7 @@ export type ChatResponse = {
   action_proposal: null;
 };
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
-).replace(/\/+$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 export async function askQuestion(
   question: string,
@@ -91,7 +89,11 @@ export async function askQuestion(
     }),
   });
   if (!response.ok) {
-    throw new ApiError(`Question request failed (${response.status}).`, response.status);
+    throw new ApiError(
+      `Question request failed (${response.status}).`,
+      response.status,
+      response.headers.get("X-Request-ID"),
+    );
   }
   return (await response.json()) as ChatResponse;
 }

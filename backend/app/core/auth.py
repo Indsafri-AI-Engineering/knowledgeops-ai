@@ -1,18 +1,16 @@
-import os
 import hashlib
-import time
+import json
+import os
 from functools import lru_cache
-from typing import Any
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
-from fastapi import Cookie, Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from backend.app.core.demo_auth import DemoUser, get_session_user
+from backend.app.core.demo_auth import DemoUser
 from backend.app.storage.audit import AuditLog
 
-SESSION_COOKIE = "knowledgeops_demo_session"
 _bearer_scheme = HTTPBearer(auto_error=False)
 _ALLOWED_CAPABILITIES = frozenset(
     {
@@ -38,85 +36,35 @@ class OIDCConfigurationError(ValueError):
     pass
 
 
-def demo_auth_enabled() -> bool:
-    return (
-        os.getenv("APP_ENV", "").lower() == "development"
-        and os.getenv("DEMO_AUTH_ENABLED", "").lower() == "true"
-    )
-
-
-def auth_mode() -> str:
-    configured_mode = os.getenv("AUTH_MODE")
-    if configured_mode:
-        return configured_mode.lower()
-    return "demo" if demo_auth_enabled() else "oidc"
-
-
-def require_demo_auth_enabled() -> None:
-    if auth_mode() != "demo" or not demo_auth_enabled():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                "Demo authentication requires APP_ENV=development and "
-                "DEMO_AUTH_ENABLED=true."
-            ),
-        )
-
-
 def get_current_user(
     request: Request,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
         Depends(_bearer_scheme),
     ] = None,
-    session_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
 ) -> DemoUser:
-    mode = auth_mode()
-    if mode == "oidc":
-        if credentials is None or credentials.scheme.lower() != "bearer":
-            _record_auth_denial(request, "auth.missing_bearer_token")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Bearer token required.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        try:
-            return authenticate_oidc_token(credentials.credentials)
-        except OIDCConfigurationError as error:
-            _record_auth_denial(request, "auth.oidc_misconfigured")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="OIDC authentication is not configured correctly.",
-            ) from error
-        except (jwt.PyJWTError, ValueError):
-            _record_auth_denial(request, "auth.invalid_bearer_token")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Bearer token is invalid or expired.",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from None
-
-    if mode != "demo" or not demo_auth_enabled():
-        _record_auth_denial(request, "auth.unavailable")
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        _record_auth_denial(request, "auth.missing_bearer_token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication is not configured.",
+            detail="Bearer token required.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    if session_token is None:
-        _record_auth_denial(request, "auth.missing_session")
+    try:
+        return authenticate_oidc_token(credentials.credentials)
+    except OIDCConfigurationError as error:
+        _record_auth_denial(request, "auth.oidc_misconfigured")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OIDC authentication is not configured correctly.",
+        ) from error
+    except (jwt.PyJWTError, ValueError):
+        _record_auth_denial(request, "auth.invalid_bearer_token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required.",
-        )
-
-    user = get_session_user(session_token, time.time())
-    if user is None:
-        _record_auth_denial(request, "auth.invalid_session")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session is invalid or expired.",
-        )
-    return user
+            detail="Bearer token is invalid or expired.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
 
 
 @lru_cache(maxsize=4)
@@ -165,7 +113,11 @@ def authenticate_oidc_token(token: str) -> DemoUser:
         (group for group in raw_groups if group in group_capabilities),
         None,
     )
-    role = matched_group.rsplit("/", 1)[-1].replace("-", "_") if matched_group else "authenticated"
+    role = (
+        matched_group.rsplit("/", 1)[-1].replace("-", "_")
+        if matched_group
+        else "authenticated"
+    )
     display_name = claims.get("name") or claims.get("preferred_username") or subject
     if not isinstance(display_name, str):
         display_name = subject
@@ -178,8 +130,6 @@ def authenticate_oidc_token(token: str) -> DemoUser:
 
 
 def _group_capability_mapping() -> dict[str, list[str]]:
-    import json
-
     raw_mapping = os.getenv("OIDC_GROUP_CAPABILITIES", "{}")
     try:
         mapping = json.loads(raw_mapping)

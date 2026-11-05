@@ -176,6 +176,30 @@ def test_mongodb_repository_persists_document_and_chunks() -> None:
     assert repository.list_chunks() == []
 
 
+def test_mongodb_repository_ignores_vector_only_chunks_without_ordinals() -> None:
+    database = FakeDatabase()
+    repository = MongoKnowledgeDocumentRepository(database=database)
+    repository.add_document(_document(), [_chunk()])
+    database["knowledge_chunks"].insert_one(
+        {
+            "_id": "seed:0",
+            "chunk_id": "seed:0",
+            "document_id": "seed",
+            "title": "Seed guide",
+            "source": "fictional_demo",
+            "access_scope": "general",
+            "source_path": "seed.md",
+            "section": "Overview",
+            "text": "synthetic seed content",
+        }
+    )
+
+    chunks = repository.list_chunks()
+
+    assert [chunk.document_id for chunk in chunks] == ["doc"]
+    assert chunks[0].text == "synthetic procedure"
+
+
 def test_mongodb_repository_rejects_duplicate_document_hash() -> None:
     repository = MongoKnowledgeDocumentRepository(database=FakeDatabase())
     repository.add_document(_document(), [_chunk()])

@@ -10,6 +10,7 @@ from backend.app.integrations.jira_cloud import (
     JiraRequestError,
 )
 from backend.app.main import app
+from conftest import authenticate_as
 
 
 def _response(payload: dict, status_code: int = 200) -> SimpleNamespace:
@@ -194,7 +195,7 @@ def test_jira_api_uses_capabilities_and_requires_explicit_write_confirmation(
     )
 
     requester = TestClient(app)
-    requester.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
+    authenticate_as("demo-it")
     assert requester.get("/api/v1/jira/projects").status_code == 200
     forbidden_write = requester.post(
         "/api/v1/jira/issues",
@@ -209,7 +210,7 @@ def test_jira_api_uses_capabilities_and_requires_explicit_write_confirmation(
     assert forbidden_write.status_code == 403
 
     manager = TestClient(app)
-    manager.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    authenticate_as("demo-manager")
     missing_confirmation = manager.post(
         "/api/v1/jira/issues",
         json={
@@ -239,7 +240,7 @@ def test_jira_api_returns_created_issue_with_cors_headers(monkeypatch) -> None:
     )
 
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    authenticate_as("demo-manager")
     response = client.post(
         "/api/v1/jira/issues",
         headers={"Origin": "http://localhost:5173"},
@@ -297,7 +298,7 @@ def test_jira_issue_notification_reports_delivery_without_sending_issue_content(
 
     monkeypatch.setattr(httpx, "post", fake_post)
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    authenticate_as("demo-manager")
     response = client.post(
         "/api/v1/jira/issues",
         json={
@@ -340,7 +341,7 @@ def test_jira_issue_creation_failure_does_not_notify_n8n(monkeypatch) -> None:
 
     monkeypatch.setattr(httpx, "post", unexpected_notification)
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    authenticate_as("demo-manager")
     response = client.post(
         "/api/v1/jira/issues",
         json={
@@ -366,7 +367,7 @@ def test_jira_api_reports_missing_credentials_without_leaking_secrets(
     monkeypatch.setenv("JIRA_BASE_URL", "https://example.atlassian.net")
 
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
+    authenticate_as("demo-it")
     response = client.get("/api/v1/jira/projects")
 
     assert response.status_code == 503

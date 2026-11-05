@@ -1,5 +1,3 @@
-import secrets
-import time
 from typing import Literal
 
 from pydantic import BaseModel
@@ -82,30 +80,3 @@ DEMO_USERS: dict[DemoUserId, DemoUser] = {
         capabilities=["system:admin", "audit:read", "knowledge:manage"],
     ),
 }
-
-SESSION_TTL_SECONDS = 60 * 60
-_sessions: dict[str, tuple[DemoUserId, float]] = {}
-
-
-def create_session(user_id: DemoUserId, now: float | None = None) -> str:
-    issued_at = time.time() if now is None else now
-    token = secrets.token_urlsafe(32)
-    _sessions[token] = (user_id, issued_at + SESSION_TTL_SECONDS)
-    return token
-
-
-def get_session_user(token: str, now: float | None = None) -> DemoUser | None:
-    current_time = time.time() if now is None else now
-    session = _sessions.get(token)
-    if session is None:
-        return None
-
-    user_id, expires_at = session
-    if current_time >= expires_at:
-        _sessions.pop(token, None)
-        return None
-    return DEMO_USERS[user_id].model_copy(deep=True)
-
-
-def delete_session(token: str) -> None:
-    _sessions.pop(token, None)

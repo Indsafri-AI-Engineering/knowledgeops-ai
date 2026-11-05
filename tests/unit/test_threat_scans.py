@@ -4,16 +4,17 @@ import urllib.request
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
+from conftest import authenticate_as
 
 
 def _login(client: TestClient, user_id: str) -> None:
-    response = client.post("/api/v1/auth/demo-login", json={"user_id": user_id})
-    assert response.status_code == 200
+    authenticate_as(user_id)
 
 
 def test_threat_scan_api_requires_security_capability(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "false")
+    monkeypatch.delenv("VIRUSTOTAL_API_KEY", raising=False)
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
 
     employee = TestClient(app)
@@ -48,7 +49,6 @@ def test_system_status_reports_virustotal_without_exposing_missing_key(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     monkeypatch.setenv("VIRUSTOTAL_ENABLED", "true")
     monkeypatch.delenv("VIRUSTOTAL_API_KEY", raising=False)
 

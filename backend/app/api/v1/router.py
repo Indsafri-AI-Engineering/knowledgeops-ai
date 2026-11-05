@@ -1,6 +1,5 @@
 import os
 
-from backend.app.api.v1.auth import router as auth_router
 from backend.app.api.v1.audit import router as audit_router
 from backend.app.api.v1.chat import router as chat_router
 from backend.app.api.v1.connectors import router as connectors_router
@@ -15,7 +14,6 @@ from backend.app.core.auth import get_current_user
 from backend.app.core.demo_auth import DemoUser
 
 router = APIRouter(prefix="/api/v1")
-router.include_router(auth_router)
 router.include_router(chat_router)
 router.include_router(audit_router)
 if os.getenv("ENABLE_TEST_FIXTURES", "").lower() == "true":

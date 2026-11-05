@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from backend.app.core.auth import auth_mode, get_current_user
+from backend.app.core.auth import get_current_user
 from backend.app.integrations.jira_cloud import JiraCloudClient
 from backend.app.integrations.n8n import N8nAlertNotifier, N8nJiraNotifier
 from backend.app.threat_detection.virustotal import (
@@ -391,22 +391,13 @@ def read_system_status() -> SystemStatusResponse:
             ),
             external_connection=selected,
         )
-    if auth_mode() == "oidc":
-        authentication = SystemComponent(
-            name="Authentication",
-            category="identity",
-            mode="local",
-            description="Keycloak-issued OIDC bearer tokens are verified against the configured issuer and group mapping.",
-            external_connection=False,
-        )
-    else:
-        authentication = SystemComponent(
-            name="Authentication",
-            category="identity",
-            mode="mock",
-            description="Selectable fictional demo identities; no identity provider is connected.",
-            external_connection=False,
-        )
+    authentication = SystemComponent(
+        name="Authentication",
+        category="identity",
+        mode="local",
+        description="Keycloak-issued OIDC bearer tokens are verified against the configured issuer and group mapping.",
+        external_connection=False,
+    )
     components.insert(0, authentication)
     environment = os.getenv("APP_ENV", "development").strip().lower()
     return SystemStatusResponse(

@@ -6,6 +6,7 @@ from backend.app.knowledge.retrieval import LocalKnowledgeIndex
 from backend.app.core.demo_auth import DEMO_USERS
 from backend.app.core.permissions import user_scopes
 from backend.app.main import app
+from conftest import authenticate_as
 
 
 def test_retrieval_cache_is_partitioned_by_permission_scope() -> None:
@@ -41,14 +42,18 @@ def test_observability_metrics_are_administrator_only(monkeypatch, tmp_path) -> 
     get_knowledge_index.cache_clear()
 
     employee = TestClient(app)
-    employee.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
     assert employee.get("/api/v1/observability/metrics").status_code == 403
 
     admin = TestClient(app)
-    admin.post("/api/v1/auth/demo-login", json={"user_id": "demo-admin"})
+    authenticate_as("demo-admin")
+    assert admin.get("/api/v1/me").status_code == 200
     metrics = admin.get("/api/v1/observability/metrics")
 
     assert metrics.status_code == 200
     payload = metrics.json()
     assert "retrieval_cache" in payload
-    assert any(item["route"] == "/api/v1/auth/demo-login" for item in payload["requests"])
+    assert any(
+        item["route"] == "/api/v1/me"
+        for item in payload["requests"]
+    )

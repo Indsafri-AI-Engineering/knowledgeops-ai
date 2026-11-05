@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage
 from backend.app.main import app
 from backend.app.knowledge.index import get_knowledge_index
 from backend.app.knowledge.ingestion import load_knowledge_chunks
+from conftest import authenticate_as
 
 
 @pytest.fixture(autouse=True)
@@ -96,10 +97,7 @@ def test_default_index_loads_fictional_scoped_demo_documents(monkeypatch) -> Non
             "How many working days of annual leave does a full-time employee receive?"
         )
         with TestClient(app) as hr_client:
-            hr_client.post(
-                "/api/v1/auth/demo-login",
-                json={"user_id": "demo-hr"},
-            )
+            authenticate_as("demo-hr")
             hr_response = hr_client.post(
                 "/api/v1/chat",
                 json={"question": question},
@@ -110,12 +108,8 @@ def test_default_index_loads_fictional_scoped_demo_documents(monkeypatch) -> Non
             source["document_id"] == "northstar-hr-leave-and-wellbeing"
             for source in hr_response.json()["sources"]
         )
-
         with TestClient(app) as employee_client:
-            employee_client.post(
-                "/api/v1/auth/demo-login",
-                json={"user_id": "demo-employee"},
-            )
+            authenticate_as("demo-employee")
             employee_response = employee_client.post(
                 "/api/v1/chat",
                 json={"question": question},
@@ -142,7 +136,7 @@ def test_chat_returns_grounded_answer_and_source(monkeypatch) -> None:
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-hr"})
+    authenticate_as("demo-hr")
 
     response = client.post(
         "/api/v1/chat",
@@ -180,7 +174,7 @@ def test_chat_routes_analysis_to_grounded_analytical_generation(monkeypatch) -> 
         fake_generate,
     )
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     response = client.post(
         "/api/v1/chat",
@@ -202,7 +196,7 @@ def test_chat_marks_unsupported_action_without_executing_it(monkeypatch) -> None
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     response = client.post(
         "/api/v1/chat",
@@ -239,7 +233,7 @@ def test_chat_uses_local_model_for_retrieved_evidence(monkeypatch) -> None:
         lambda: FakeChatOllama(model="llama3.2:3b"),
     )
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-hr"})
+    authenticate_as("demo-hr")
 
     response = client.post(
         "/api/v1/chat",
@@ -260,7 +254,7 @@ def test_chat_filters_recruitment_documents_before_retrieval(monkeypatch) -> Non
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     response = client.post(
         "/api/v1/chat",
@@ -279,7 +273,7 @@ def test_employee_chat_denies_hr_onboarding_without_exposing_sources(monkeypatch
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     response = client.post(
         "/api/v1/chat",
@@ -304,7 +298,7 @@ def test_salesforce_guided_login_help_uses_fictional_source_and_langchain(
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
+    authenticate_as("demo-it")
 
     response = client.post(
         "/api/v1/connectors/it/salesforce/login-guide",
@@ -333,7 +327,7 @@ def test_salesforce_guided_login_help_denies_users_without_it_scope(
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-recruiter"})
+    authenticate_as("demo-recruiter")
 
     response = client.post(
         "/api/v1/connectors/it/salesforce/login-guide",
@@ -347,7 +341,7 @@ def test_salesforce_guided_login_help_validates_symptom(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     response = client.post(
         "/api/v1/connectors/it/salesforce/login-guide",
@@ -362,7 +356,7 @@ def test_recruiter_can_retrieve_recruitment_agreement(monkeypatch) -> None:
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-recruiter"})
+    authenticate_as("demo-recruiter")
 
     response = client.post(
         "/api/v1/chat",
@@ -375,9 +369,7 @@ def test_recruiter_can_retrieve_recruitment_agreement(monkeypatch) -> None:
     assert body["sources"][0]["document_id"] == "demo-recruitment-agreement"
 
 
-def test_chat_requires_a_demo_session(monkeypatch) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+def test_chat_requires_bearer_authentication() -> None:
     client = TestClient(app)
 
     assert client.post("/api/v1/chat", json={"question": "Annual leave?"}).status_code == 401
@@ -387,7 +379,7 @@ def test_chat_rejects_empty_question(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     assert client.post("/api/v1/chat", json={"question": ""}).status_code == 422
 
@@ -397,7 +389,7 @@ def test_chat_accepts_vector_and_hybrid_modes(monkeypatch) -> None:
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     for mode in ("vector", "keyword", "hybrid"):
         response = client.post(
@@ -451,10 +443,7 @@ def test_chat_is_stateless_and_does_not_persist_prior_questions_or_answers(
     )
     get_knowledge_index.cache_clear()
     with TestClient(app) as client:
-        client.post(
-            "/api/v1/auth/demo-login",
-            json={"user_id": "demo-employee"},
-        )
+        authenticate_as("demo-employee")
         first_question = "How many annual leave days do employees receive?"
         second_question = (
             "What steps should a recruiter follow when screening candidates?"
@@ -501,7 +490,7 @@ def test_jira_and_threat_intents_are_routed_but_not_executed(monkeypatch) -> Non
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    authenticate_as("demo-manager")
 
     jira_response = client.post(
         "/api/v1/chat",
@@ -524,19 +513,13 @@ def test_faq_suggestions_respect_user_scopes(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     employee_client = TestClient(app)
-    employee_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
-    )
+    authenticate_as("demo-employee")
     employee_faqs = employee_client.get("/api/v1/faqs/suggestions").json()
     assert all(faq["faq_id"] != "recruitment-fee" for faq in employee_faqs)
     assert any(faq["faq_id"] == "annual-leave" for faq in employee_faqs)
 
     recruiter_client = TestClient(app)
-    recruiter_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-recruiter"},
-    )
+    authenticate_as("demo-recruiter")
     recruiter_faqs = recruiter_client.get(
         "/api/v1/faqs/suggestions",
         params={"query": "success fee"},
@@ -549,10 +532,7 @@ def test_recruiter_chat_matches_fictional_cvs_with_review_notice(monkeypatch) ->
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     client = TestClient(app)
-    client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-recruiter"},
-    )
+    authenticate_as("demo-recruiter")
 
     response = client.post(
         "/api/v1/chat",
@@ -575,10 +555,7 @@ def test_recruitment_fee_is_transparent_and_permission_filtered(monkeypatch) -> 
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     get_knowledge_index.cache_clear()
     recruiter_client = TestClient(app)
-    recruiter_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-recruiter"},
-    )
+    authenticate_as("demo-recruiter")
 
     calculated = recruiter_client.post(
         "/api/v1/connectors/recruitment/success-fee",
@@ -600,10 +577,7 @@ def test_recruitment_fee_is_transparent_and_permission_filtered(monkeypatch) -> 
     )
 
     employee_client = TestClient(app)
-    employee_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
-    )
+    authenticate_as("demo-employee")
     assert (
         employee_client.post(
             "/api/v1/connectors/recruitment/success-fee",
@@ -626,10 +600,7 @@ def test_mock_hr_and_it_connectors_enforce_scopes(monkeypatch) -> None:
     get_knowledge_index.cache_clear()
 
     employee_client = TestClient(app)
-    employee_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
-    )
+    authenticate_as("demo-employee")
     leave = employee_client.get("/api/v1/connectors/hr/leave-policy")
     assert leave.status_code == 200
     assert leave.json()["status"] == "mock"
@@ -643,10 +614,7 @@ def test_mock_hr_and_it_connectors_enforce_scopes(monkeypatch) -> None:
     assert denied_it.status_code == 403
 
     it_client = TestClient(app)
-    it_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-it"},
-    )
+    authenticate_as("demo-it")
     it = it_client.post(
         "/api/v1/connectors/it/troubleshooting",
         json={"question": "Salesforce login troubleshooting"},
@@ -656,10 +624,7 @@ def test_mock_hr_and_it_connectors_enforce_scopes(monkeypatch) -> None:
     assert it.json()["sources"][0]["document_id"] == "demo-it-salesforce-login"
 
     security_client = TestClient(app)
-    security_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-security"},
-    )
+    authenticate_as("demo-security")
     assert (
         security_client.post(
             "/api/v1/connectors/it/troubleshooting",
@@ -673,7 +638,7 @@ def test_mock_recruitment_campaign_endpoint_is_authorized(monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-recruiter"})
+    authenticate_as("demo-recruiter")
 
     response = client.post(
         "/api/v1/connectors/recruitment/campaigns/backend-engineer/matches"

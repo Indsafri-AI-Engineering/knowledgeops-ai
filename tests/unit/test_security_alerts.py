@@ -9,11 +9,11 @@ from backend.app.integrations.n8n import N8nAlertNotifier, N8nJiraNotifier
 from backend.app.main import app
 from backend.app.threat_detection.alerts import create_security_alert
 from backend.app.threat_detection.monitor import reset_monitor_state
+from conftest import authenticate_as
 
 
 def _login(client: TestClient, user_id: str) -> None:
-    response = client.post("/api/v1/auth/demo-login", json={"user_id": user_id})
-    assert response.status_code == 200
+    authenticate_as(user_id)
 
 
 def test_suspicious_scan_creates_redacted_alert_and_supports_review_lifecycle(

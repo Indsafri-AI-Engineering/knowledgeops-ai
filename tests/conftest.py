@@ -6,7 +6,6 @@ import pytest
 
 os.environ["APP_ENV"] = "test"
 os.environ["ENABLE_TEST_FIXTURES"] = "true"
-os.environ["AUTH_MODE"] = "demo"
 os.environ["KNOWLEDGE_SEED_DIRECTORY"] = str(
     Path(__file__).resolve().parent / "fixtures" / "fictional_demo"
 )
@@ -44,6 +43,25 @@ for key in (
 ):
     os.environ.pop(key, None)
 os.environ["RAG_BACKEND"] = "local"
+
+
+def authenticate_as(user_id: str) -> None:
+    from backend.app.core.auth import get_current_user
+    from backend.app.core.demo_auth import DEMO_USERS
+    from backend.app.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: DEMO_USERS[
+        user_id
+    ].model_copy(deep=True)
+
+
+@pytest.fixture(autouse=True)
+def clear_test_auth_override():
+    from backend.app.core.auth import get_current_user
+    from backend.app.main import app
+
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture(autouse=True)

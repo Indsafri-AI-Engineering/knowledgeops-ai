@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from backend.app.connectors.jira import JiraDemoConnector, JiraProposalInput
 from backend.app.main import app
+from conftest import authenticate_as
 
 
 def test_mock_jira_search_is_scoped_and_searches_created_issues(
@@ -17,17 +18,14 @@ def test_mock_jira_search_is_scoped_and_searches_created_issues(
     monkeypatch.setenv("JIRA_CREATED_ISSUES_PATH", str(tmp_path / "created.json"))
 
     employee_client = TestClient(app)
-    employee_client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
-    )
+    authenticate_as("demo-employee")
     assert (
         employee_client.get("/api/v1/connectors/jira/issues").status_code
         == 403
     )
 
     it_client = TestClient(app)
-    it_client.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
+    authenticate_as("demo-it")
     search = it_client.get(
         "/api/v1/connectors/jira/issues",
         params={"query": "AI Team"},
@@ -59,7 +57,7 @@ def test_jira_proposal_requires_distinct_authorized_approver(
     monkeypatch.setenv("JIRA_CREATED_ISSUES_PATH", str(tmp_path / "created.json"))
 
     requester = TestClient(app)
-    requester.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
+    authenticate_as("demo-it")
     proposal_response = requester.post(
         "/api/v1/connectors/jira/proposals",
         json={
@@ -81,7 +79,7 @@ def test_jira_proposal_requires_distinct_authorized_approver(
     assert self_approval.status_code == 403
 
     manager = TestClient(app)
-    manager.post("/api/v1/auth/demo-login", json={"user_id": "demo-manager"})
+    authenticate_as("demo-manager")
     pending = manager.get("/api/v1/connectors/jira/proposals")
     assert pending.status_code == 200
     assert [item["action_id"] for item in pending.json()] == [proposal["action_id"]]
@@ -121,7 +119,7 @@ def test_jira_proposal_validation_rejects_unapproved_project_and_fields(
     monkeypatch.setenv("JIRA_ACTIONS_PATH", str(tmp_path / "actions.json"))
 
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-it"})
+    authenticate_as("demo-it")
 
     response = client.post(
         "/api/v1/connectors/jira/proposals",

@@ -49,9 +49,7 @@ export type SecurityAlert = {
   reviewed_by: string | null;
 };
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
-).replace(/\/+$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 export async function listSecurityAlerts(): Promise<SecurityAlert[]> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/security/alerts`);

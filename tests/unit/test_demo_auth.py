@@ -3,18 +3,10 @@ import json
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
-
-
-def test_demo_admin_has_audit_read_capability() -> None:
-    from backend.app.core.demo_auth import DEMO_USERS
-
-    assert "audit:read" in DEMO_USERS["demo-admin"].capabilities
-    assert "knowledge:manage" in DEMO_USERS["demo-admin"].capabilities
+from conftest import authenticate_as
 
 
 def test_audit_log_records_auth_and_admin_can_read(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
 
     anonymous_client = TestClient(app)
@@ -23,7 +15,7 @@ def test_audit_log_records_auth_and_admin_can_read(monkeypatch, tmp_path) -> Non
     assert denied_response.headers["x-request-id"]
 
     administrator_client = TestClient(app)
-    administrator_client.post("/api/v1/auth/demo-login", json={"user_id": "demo-admin"})
+    authenticate_as("demo-admin")
     forbidden_response = administrator_client.post(
         "/api/v1/chat",
         json={"question": "personal leave balance is private"},
@@ -31,15 +23,16 @@ def test_audit_log_records_auth_and_admin_can_read(monkeypatch, tmp_path) -> Non
     assert forbidden_response.status_code == 403
 
     employee_client = TestClient(app)
-    employee_client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
     employee_audit_response = employee_client.get("/api/v1/audit-events")
     assert employee_audit_response.status_code == 403
 
+    authenticate_as("demo-admin")
     audit_response = administrator_client.get("/api/v1/audit-events")
     assert audit_response.status_code == 200
     events = audit_response.json()
 
-    assert any(event["action"] == "auth.missing_session" for event in events)
+    assert any(event["action"] == "auth.missing_bearer_token" for event in events)
     assert any(
         event["action"] == "authorization.chat:ask"
         and event["outcome"] == "denied"
@@ -56,60 +49,47 @@ def test_audit_log_records_auth_and_admin_can_read(monkeypatch, tmp_path) -> Non
     )
 
 
-def test_demo_authentication_lifecycle(monkeypatch) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+def test_demo_cookie_and_login_endpoints_are_rejected(monkeypatch) -> None:
+    monkeypatch.setenv("AUTH_MODE", "demo")
     client = TestClient(app)
 
     assert client.get("/api/v1/health").json() == {"status": "ok"}
-    assert client.get("/api/v1/me").status_code == 401
-
-    available_users = client.get("/api/v1/auth/demo-users")
-    assert available_users.status_code == 200
-    assert {user["user_id"] for user in available_users.json()} >= {
-        "demo-employee",
-        "demo-hr",
-    }
-
-    login_response = client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
+    assert (
+        client.get(
+            "/api/v1/me",
+            cookies={"knowledgeops_demo_session": "fictional-session"},
+        ).status_code
+        == 401
     )
-    assert login_response.status_code == 200
-    assert login_response.json()["role"] == "employee"
-    assert login_response.cookies.get("knowledgeops_demo_session")
-    assert "httponly" in login_response.headers["set-cookie"].lower()
-
-    current_user = client.get("/api/v1/me")
-    assert current_user.status_code == 200
-    assert current_user.json()["user_id"] == "demo-employee"
-    assert "knowledge:read:hr" not in current_user.json()["capabilities"]
-    assert "knowledge:read:it" not in current_user.json()["capabilities"]
-
-    assert client.post("/api/v1/auth/logout").status_code == 204
-    assert client.get("/api/v1/me").status_code == 401
+    assert client.get("/api/v1/auth/demo-users").status_code == 404
+    assert (
+        client.post(
+            "/api/v1/auth/demo-login",
+            json={"user_id": "demo-employee"},
+        ).status_code
+        == 404
+    )
+    assert client.post("/api/v1/auth/logout").status_code == 404
 
 
-def test_system_status_requires_demo_auth_and_reports_local_boundaries(
+def test_system_status_requires_bearer_auth_and_reports_local_boundaries(
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
+    monkeypatch.setenv("VIRUSTOTAL_ENABLED", "false")
+    monkeypatch.delenv("VIRUSTOTAL_API_KEY", raising=False)
     monkeypatch.setenv("RAG_BACKEND", "qdrant")
     monkeypatch.setenv("RAG_GENERATION_BACKEND", "ollama")
     client = TestClient(app)
 
     assert client.get("/api/v1/system/status").status_code == 401
-    client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
-    )
+    authenticate_as("demo-employee")
     response = client.get("/api/v1/system/status")
 
     assert response.status_code == 200
     body = response.json()
     components = {component["name"]: component for component in body["components"]}
-    assert body["environment"] == "development"
+    assert body["environment"] == "test"
+    assert components["Authentication"]["mode"] == "local"
     assert components["MCP"]["mode"] == "disabled"
     assert components["n8n notifications"]["mode"] == "disabled"
     assert components["Groq"]["mode"] == "disabled"
@@ -127,13 +107,11 @@ def test_system_status_requires_demo_auth_and_reports_local_boundaries(
 
 
 def test_system_status_discloses_selected_hosted_providers(monkeypatch) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     monkeypatch.setenv("RAG_BACKEND", "qdrant")
     monkeypatch.setenv("RAG_EMBEDDING_PROVIDER", "mistral")
     monkeypatch.setenv("RAG_GENERATION_BACKEND", "groq")
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-employee"})
+    authenticate_as("demo-employee")
 
     response = client.get("/api/v1/system/status")
 
@@ -152,13 +130,11 @@ def test_system_status_discloses_selected_hosted_providers(monkeypatch) -> None:
 def test_system_status_reports_atlas_document_and_vector_storage(
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
     monkeypatch.setenv("KNOWLEDGE_STORE_BACKEND", "mongodb")
     monkeypatch.setenv("MONGODB_URI", "mongodb+srv://configured.example")
     monkeypatch.setenv("RAG_BACKEND", "atlas")
     client = TestClient(app)
-    client.post("/api/v1/auth/demo-login", json={"user_id": "demo-admin"})
+    authenticate_as("demo-admin")
 
     response = client.get("/api/v1/system/status")
 
@@ -171,32 +147,3 @@ def test_system_status_reports_atlas_document_and_vector_storage(
     assert components["Storage"]["mode"] == "external"
     assert components["Retrieval"]["mode"] == "external"
     assert "access-scope prefilter" in components["Retrieval"]["description"]
-
-
-def test_demo_authentication_is_disabled_outside_development(monkeypatch) -> None:
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
-    client = TestClient(app)
-
-    assert client.get("/api/v1/auth/demo-users").status_code == 404
-    assert (
-        client.post(
-            "/api/v1/auth/demo-login",
-            json={"user_id": "demo-employee"},
-        ).status_code
-        == 404
-    )
-
-
-def test_demo_login_rejects_unknown_identity(monkeypatch) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
-    client = TestClient(app)
-
-    assert (
-        client.post(
-            "/api/v1/auth/demo-login",
-            json={"user_id": "not-a-demo-user"},
-        ).status_code
-        == 422
-    )

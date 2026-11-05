@@ -12,6 +12,7 @@ from pypdf.generic import RectangleObject
 
 import backend.app.api.v1.knowledge_documents as knowledge_document_api
 from backend.app.main import app
+from conftest import authenticate_as
 from backend.app.knowledge.index import get_knowledge_index
 from backend.app.storage.knowledge import (
     CorruptKnowledgeStoreError,
@@ -141,10 +142,7 @@ def admin_client(monkeypatch, tmp_path) -> Iterator[TestClient]:
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
     get_knowledge_index.cache_clear()
     with TestClient(app) as client:
-        client.post(
-            "/api/v1/auth/demo-login",
-            json={"user_id": "demo-admin"},
-        )
+        authenticate_as("demo-admin")
         yield client
     get_knowledge_index.cache_clear()
 
@@ -232,10 +230,7 @@ def test_pdf_ingestion_persists_chunks_and_makes_them_retrievable(
 
     get_knowledge_index.cache_clear()
     with TestClient(app) as it_client:
-        it_client.post(
-            "/api/v1/auth/demo-login",
-            json={"user_id": "demo-it"},
-        )
+        authenticate_as("demo-it")
         chat_response = it_client.post(
             "/api/v1/chat",
             json={"question": "What is the quantum widget blue alignment key?"},
@@ -244,10 +239,7 @@ def test_pdf_ingestion_persists_chunks_and_makes_them_retrievable(
     assert chat_response.json()["sources"][0]["document_id"] == stored_document["document_id"]
 
     with TestClient(app) as recruiter_client:
-        recruiter_client.post(
-            "/api/v1/auth/demo-login",
-            json={"user_id": "demo-recruiter"},
-        )
+        authenticate_as("demo-recruiter")
         restricted_chat = recruiter_client.post(
             "/api/v1/chat",
             json={"question": "What is the quantum widget blue alignment key?"},
@@ -284,7 +276,7 @@ def test_hr_scoped_document_is_cited_for_hr_and_withheld_from_employee(
     )
 
     with TestClient(app) as hr_client:
-        hr_client.post("/api/v1/auth/demo-login", json={"user_id": "demo-hr"})
+        authenticate_as("demo-hr")
         hr_response = hr_client.post("/api/v1/chat", json={"question": question})
 
     assert hr_response.status_code == 200
@@ -293,10 +285,7 @@ def test_hr_scoped_document_is_cited_for_hr_and_withheld_from_employee(
     }
 
     with TestClient(app) as employee_client:
-        employee_client.post(
-            "/api/v1/auth/demo-login",
-            json={"user_id": "demo-employee"},
-        )
+        authenticate_as("demo-employee")
         employee_response = employee_client.post(
             "/api/v1/chat",
             json={"question": question},
@@ -434,10 +423,7 @@ def test_pdf_document_management_requires_admin_capability(
     monkeypatch.setenv("AUTH_MODE", "demo")
     monkeypatch.setenv("KNOWLEDGE_STORE_PATH", str(tmp_path / "knowledge.json"))
     client = TestClient(app)
-    client.post(
-        "/api/v1/auth/demo-login",
-        json={"user_id": "demo-employee"},
-    )
+    authenticate_as("demo-employee")
 
     assert client.get("/api/v1/knowledge/documents").status_code == 403
     denied_upload = _upload(

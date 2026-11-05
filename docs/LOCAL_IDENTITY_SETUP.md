@@ -49,12 +49,10 @@ In the backend PowerShell terminal:
 
 ```powershell
 $env:APP_ENV = "development"
-$env:AUTH_MODE = "oidc"
 $env:OIDC_ISSUER_URL = "http://localhost:8080/realms/knowledgeops"
 $env:OIDC_AUDIENCE = "knowledgeops-api"
 $env:OIDC_GROUPS_CLAIM = "groups"
 $env:OIDC_GROUP_CAPABILITIES = Get-Content .env.example | Where-Object { $_ -like "OIDC_GROUP_CAPABILITIES=*" } | ForEach-Object { $_.Substring("OIDC_GROUP_CAPABILITIES=".Length) }
-$env:DEMO_AUTH_ENABLED = "false"
 python -m uvicorn backend.app.main:app --reload
 ```
 
@@ -81,7 +79,11 @@ npm run dev
 The SPA uses the OIDC authorization-code flow with PKCE and stores OIDC state
 in browser session storage. The imported `knowledgeops-web` client allows the
 common local Vite ports 5173 and 5174 on both `localhost` and `127.0.0.1`.
-The API uses bearer access tokens.
+The API uses bearer access tokens. During local development, Vite forwards
+same-origin `/api` requests to `http://localhost:8000`, avoiding browser
+cross-origin restrictions. Leave `VITE_API_BASE_URL` empty for this setup;
+set it to an absolute API origin only when the frontend is served separately
+without a development proxy.
 
 ## Sign-in troubleshooting
 
@@ -120,8 +122,8 @@ appears in the error message and can be used to correlate backend logs.
 5. Set an invalid issuer, audience, group mapping, or token and verify that
    authentication fails closed.
 
-The local API must be reachable at the configured `VITE_API_BASE_URL`; the
-browser and API must resolve the same issuer URL used in the token's `iss`
-claim. Development HTTP is restricted to this local setup. Production needs
+The local API must be reachable at `http://localhost:8000`; the browser and
+API must resolve the same issuer URL used in the token's `iss` claim.
+Development HTTP is restricted to this local setup. Production needs
 TLS, approved identity ownership, a formal permission policy, secret
 management, and security review before use.

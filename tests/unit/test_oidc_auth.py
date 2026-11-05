@@ -184,12 +184,11 @@ def test_oidc_group_mapping_rejects_non_string_capabilities(
     assert response.json()["detail"] == "OIDC authentication is not configured correctly."
 
 
-def test_demo_auth_endpoints_are_disabled_when_oidc_is_selected(monkeypatch) -> None:
-    monkeypatch.setenv("AUTH_MODE", "oidc")
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("DEMO_AUTH_ENABLED", "true")
-
+def test_demo_login_endpoint_is_removed() -> None:
     with TestClient(app) as client:
-        response = client.get("/api/v1/auth/demo-users")
+        response = client.post(
+            "/api/v1/auth/demo-login",
+            json={"user_id": "demo-employee"},
+        )
 
     assert response.status_code == 404

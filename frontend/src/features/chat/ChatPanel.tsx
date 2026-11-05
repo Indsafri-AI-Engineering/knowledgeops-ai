@@ -4,6 +4,7 @@ import {
   type ChatResponse,
   type SourceCitation,
 } from "../../api/chat";
+import { ApiError } from "../../api/auth";
 
 const suggestedQuestions = [
   "Where can I find the latest team policies?",
@@ -19,6 +20,31 @@ function formatSourceMetadata(source: SourceCitation): string {
     source.next_review ? `Review due: ${source.next_review}` : null,
     source.environment,
   ].filter((item): item is string => Boolean(item)).join(" · ");
+}
+
+function getQuestionErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const requestReference = error.requestId
+      ? ` Request ID: ${error.requestId}.`
+      : "";
+    if (error.status === 401) {
+      return `Your sign-in may have expired. Sign in again and retry.${requestReference}`;
+    }
+    if (error.status === 403) {
+      return `Your account is not authorized to ask questions.${requestReference}`;
+    }
+    if (error.status === 422) {
+      return `The API could not accept this question. Try shortening or rephrasing it.${requestReference}`;
+    }
+    if (error.status >= 500) {
+      return `The API encountered an error while answering. Try again later.${requestReference}`;
+    }
+    return `The API rejected the question (HTTP ${error.status}).${requestReference}`;
+  }
+  if (error instanceof TypeError) {
+    return "Could not connect to the API. Check that the backend is running and try again.";
+  }
+  return "The question request failed unexpectedly. Refresh the app and try again.";
 }
 
 export function ChatPanel() {
@@ -38,8 +64,8 @@ export function ChatPanel() {
       const response = await askQuestion(question.trim(), "hybrid");
       setResult(response);
       setQuestion("");
-    } catch {
-      setError("The question could not be answered. Check the API connection and try again.");
+    } catch (requestError: unknown) {
+      setError(getQuestionErrorMessage(requestError));
     } finally {
       setBusy(false);
     }

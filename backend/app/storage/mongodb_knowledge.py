@@ -106,8 +106,14 @@ class MongoKnowledgeDocumentRepository:
         ]
 
     def list_chunks(self) -> list[KnowledgeChunk]:
+        document_ids = [
+            document["document_id"]
+            for document in self._documents.find({}, {"document_id": 1})
+        ]
+        if not document_ids:
+            return []
         chunks = self._chunks.find(
-            {},
+            {"document_id": {"$in": document_ids}},
             {"_id": 0, "embedding": 0, "embedding_model": 0},
         ).sort(
             [("document_id", ASCENDING), ("ordinal", ASCENDING)]
