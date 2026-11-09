@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KnowledgeOps AI | Architecture and Process Workflow</title>
+<style>
+@page { size: A4 landscape; margin: 14mm; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #172033; font: 11pt/1.42 "Segoe UI", Arial, sans-serif; }
+.page { min-height: 180mm; page-break-after: always; padding: 2mm 1mm; }
+.page:last-child { page-break-after: auto; }
+h1 { color: #123b63; font-size: 27pt; margin: 0 0 4mm; }
+h2 { color: #123b63; font-size: 19pt; border-bottom: 2px solid #27a6a1; padding-bottom: 2mm; margin: 0 0 5mm; }
+h3 { color: #12645f; margin: 3mm 0 1mm; font-size: 12pt; }
+p { margin: 1.5mm 0; }
+code { font: 9pt Consolas, monospace; color: #143c68; background: #eef4f8; padding: .4mm 1mm; }
+.subtitle { font-size: 14pt; color: #506078; margin-bottom: 7mm; }
+.note { background: #edf7f6; border-left: 4px solid #27a6a1; padding: 3mm 4mm; margin: 4mm 0; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.card { border: 1px solid #cad5e2; border-radius: 3mm; padding: 3mm 4mm; background: #fff; }
+.card h3 { margin-top: 0; }
+.architecture { width: 100%; height: 142mm; border: 1px solid #d3dce6; background: #f8fbfd; }
+.architecture text { font-family: "Segoe UI", Arial, sans-serif; fill: #172033; }
+.architecture .box { fill: white; stroke: #52718e; stroke-width: 2; rx: 12; }
+.architecture .external { fill: #edf7f6; stroke: #19847e; stroke-width: 2; rx: 12; }
+.architecture .arrow { stroke: #3f6586; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+.architecture .dashed { stroke-dasharray: 7 5; }
+table { width: 100%; border-collapse: collapse; font-size: 9.4pt; }
+th, td { border: 1px solid #cad5e2; padding: 2.2mm; vertical-align: top; }
+th { color: #123b63; background: #edf3f8; text-align: left; }
+ol, ul { margin: 1mm 0 2mm 5mm; padding-left: 4mm; }
+li { margin: 1mm 0; }
+.small { color: #536278; font-size: 9pt; }
+.swim { height: 154mm; }
+.swim th { width: 19%; }
+.swim td { height: 26mm; }
+.step { display: inline-block; background: #e9f3fa; border: 1px solid #7da2c0; border-radius: 2mm; padding: 2mm; margin: 1mm; }
+.arrowline { color: #12817b; font-weight: bold; }
+</style>
+</head>
+<body>
+<section class="page">
+  <h1>KnowledgeOps AI</h1>
+  <div class="subtitle">Project overview, architecture, code relationships, and process workflow</div>
+  <p><b>Purpose.</b> A permission-aware knowledge assistant with document ingestion, grounded question answering, and separate Jira and threat-analysis workspaces.</p>
+  <p><b>System boundary.</b> React/Vite browser app → FastAPI API → identity, retrieval, storage, and configured AI services. Keycloak, MongoDB Atlas, Ollama (or explicitly configured hosted models), and Jira Cloud are external services.</p>
+  <svg class="architecture" viewBox="0 0 1200 650" role="img" aria-label="KnowledgeOps AI system architecture">
+    <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#3f6586"/></marker></defs>
+    <rect class="box" x="35" y="70" width="205" height="115"/><text x="55" y="105" font-size="20" font-weight="bold">User / Browser</text><text x="55" y="138" font-size="16">Ask • upload • review</text><text x="55" y="162" font-size="16">React + TypeScript</text>
+    <rect class="box" x="320" y="70" width="250" height="115"/><text x="340" y="105" font-size="20" font-weight="bold">Frontend application</text><text x="340" y="138" font-size="16">ChatPanel • app panels</text><text x="340" y="162" font-size="16">OIDC token • API client</text>
+    <rect class="external" x="320" y="280" width="250" height="95"/><text x="340" y="315" font-size="20" font-weight="bold">Keycloak / OIDC</text><text x="340" y="345" font-size="16">Login • signed access token</text>
+    <rect class="box" x="665" y="70" width="255" height="115"/><text x="685" y="105" font-size="20" font-weight="bold">FastAPI backend</text><text x="685" y="138" font-size="16">Auth • permissions • API</text><text x="685" y="162" font-size="16">Moderation • audit</text>
+    <rect class="box" x="665" y="260" width="255" height="125"/><text x="685" y="295" font-size="20" font-weight="bold">Knowledge pipeline</text><text x="685" y="328" font-size="16">Route → scope-filtered search</text><text x="685" y="352" font-size="16">Evidence → grounded answer</text>
+    <rect class="external" x="990" y="60" width="185" height="100"/><text x="1010" y="98" font-size="19" font-weight="bold">MongoDB Atlas</text><text x="1010" y="128" font-size="15">Documents + chunks</text>
+    <rect class="external" x="990" y="215" width="185" height="100"/><text x="1010" y="253" font-size="19" font-weight="bold">AI provider</text><text x="1010" y="283" font-size="15">Ollama / Groq / Mistral</text>
+    <rect class="external" x="990" y="370" width="185" height="100"/><text x="1010" y="408" font-size="19" font-weight="bold">Jira Cloud</text><text x="1010" y="438" font-size="15">Separate Jira workspace</text>
+    <rect class="external" x="665" y="475" width="255" height="95"/><text x="685" y="512" font-size="20" font-weight="bold">Threat &amp; alert services</text><text x="685" y="542" font-size="16">Local scanner • optional n8n</text>
+    <path class="arrow" d="M240 125 H315"/><path class="arrow" d="M570 125 H660"/><text x="578" y="112" font-size="13">HTTPS/JSON + bearer</text>
+    <path class="arrow" d="M445 185 V275"/><text x="458" y="235" font-size="13">OIDC sign-in</text>
+    <path class="arrow" d="M570 325 C620 325 620 150 660 150"/><text x="590" y="245" font-size="13">Verified token</text>
+    <path class="arrow" d="M790 185 V255"/><path class="arrow" d="M920 300 H985"/><text x="925" y="286" font-size="13">vector + lexical</text>
+    <path class="arrow" d="M920 340 C955 340 955 265 985 265"/><text x="934" y="355" font-size="13">prompt/evidence</text>
+    <path class="arrow dashed" d="M800 185 V470"/><text x="812" y="430" font-size="13">Separate authorized routes</text>
+    <path class="arrow dashed" d="M920 425 H985"/><text x="924" y="414" font-size="13">configured Jira calls</text>
+    <text x="35" y="620" font-size="15" fill="#536278">Dashed connections mark separate feature routes; chat does not execute Jira or threat-response actions.</text>
+  </svg>
+  <div class="note"><b>Typical chat path:</b> user question → frontend API call → token and capability checks → moderation and routing → scope-filtered retrieval → answer with source citations → audit metadata → UI.</div>
+</section>
+
+<section class="page">
+  <h2>Detailed breakdown 1: UI, identity, and API entry</h2>
+  <div class="grid">
+    <div class="card"><h3>Frontend: user interaction</h3><p><code>frontend/src/app/App.tsx</code> initializes OIDC callback handling, loads the authenticated user, and selects app views.</p><p><code>frontend/src/features/chat/ChatPanel.tsx</code> collects the question, sets loading/error state, calls the chat API, and renders answer plus citations.</p><p><code>frontend/src/api/chat.ts</code> serializes question and retrieval mode to <code>POST /api/v1/chat</code> and maps the response.</p><p><code>frontend/src/api/http.ts</code> adds the OIDC bearer token before calling <code>fetch</code>.</p></div>
+    <div class="card"><h3>Identity: establish trusted user context</h3><p><code>frontend/src/api/oidc.ts</code> configures <code>oidc-client-ts</code> for authorization-code flow with PKCE and handles redirects.</p><p>Keycloak authenticates the person and issues a signed token containing identity and group claims.</p><p><code>backend/app/core/auth.py</code> validates signature, issuer, audience, expiry, and required claims; it maps configured groups to allowlisted capabilities.</p><p><code>backend/app/core/permissions.py</code> checks capabilities and derives data scopes. The backend trusts verified claims and server configuration, not UI role values.</p></div>
+  </div>
+  <h3>API boundary and request lifecycle</h3>
+  <ol><li><code>backend/app/main.py</code> loads environment settings, configures CORS and request IDs, and mounts the versioned API router.</li><li><code>backend/app/api/v1/router.py</code> connects chat, documents, Jira, threat scans, security alerts, audit, status, and observability routes.</li><li><code>backend/app/api/v1/chat.py:chat()</code> accepts validated input, requires <code>chat:ask</code>, moderates input, calls routing/orchestration, moderates output, audits metadata, and builds <code>ChatResponse</code>.</li></ol>
+  <div class="note"><b>Connection:</b> UI state and identity flow through a bearer-authenticated HTTP request. The API converts that token into a trusted backend user before any protected operation.</div>
+  <p class="small">Key files: <code>App.tsx</code> → <code>oidc.ts</code> → <code>http.ts</code> → <code>chat.ts</code> → <code>main.py</code> → <code>router.py</code> → <code>chat.py</code> → <code>auth.py</code> / <code>permissions.py</code>.</p>
+</section>
+
+<section class="page">
+  <h2>Detailed breakdown 2: chat orchestration, retrieval, and LLM</h2>
+  <table><thead><tr><th>File / component</th><th>Important functions</th><th>Role and relationship</th></tr></thead><tbody>
+  <tr><td><code>backend/app/orchestration/routing.py</code></td><td><code>_classify_intent()</code>, <code>route_question()</code></td><td>Classifies a question as knowledge, analytical, workflow, or unsupported using deterministic rules. It returns intent, component, required scope, and clarification state.</td></tr>
+  <tr><td><code>backend/app/orchestration/service.py</code></td><td><code>orchestrate_request()</code>, citation helpers</td><td>Enforces requested scope; sends knowledge questions to the index; returns planned responses for unsupported or unavailable actions. Chat does not perform Jira writes or threat response.</td></tr>
+  <tr><td><code>backend/app/knowledge/index.py</code></td><td><code>get_knowledge_index()</code></td><td>Loads fictional seed corpus and stored document chunks; selects Atlas, Qdrant, or local index from configuration.</td></tr>
+  <tr><td><code>backend/app/knowledge/mongodb_index.py</code></td><td><code>MongoAtlasKnowledgeIndex.search()</code> and embedding/index helpers</td><td>Creates query embeddings, searches Atlas Vector Search with access-scope filter, combines with lexical ranking, and returns ranked chunks.</td></tr>
+  <tr><td><code>backend/app/knowledge/retrieval.py</code></td><td><code>LocalKnowledgeIndex.search()</code>, <code>reciprocal_rank_fusion()</code></td><td>Provides local keyword/vector-like ranking and hybrid rank fusion. Candidate chunks are restricted to the authenticated user's allowed scopes.</td></tr>
+  <tr><td><code>backend/app/knowledge/generation.py</code></td><td><code>generate_grounded_answer()</code></td><td>Returns an abstention if no evidence exists; otherwise builds a grounded response from retrieved chunks and configured generation backend.</td></tr>
+  <tr><td><code>backend/app/knowledge/ai_providers.py</code></td><td><code>create_embeddings()</code>, <code>create_chat_model()</code></td><td>Connects LangChain interfaces to Ollama, or configured Mistral/Groq integrations. Hosted providers require synthetic-data configuration.</td></tr>
+  <tr><td><code>backend/app/moderation/guardrails.py</code></td><td>Input, retrieval, and output checks</td><td>Checks questions and retrieved text for unsafe or injected instructions, then checks answer output before it leaves the API.</td></tr>
+  </tbody></table>
+  <div class="note"><b>LLM relationship:</b> retrieval chooses the evidence first; only those chunks are passed to answer generation. The prompt treats evidence as untrusted data and asks the model to answer only from it. With no evidence, generation is skipped and the app abstains.</div>
+  <h3>Chat answer sequence</h3><p><code>chat()</code> → <code>route_question()</code> → <code>orchestrate_request()</code> → <code>index.search(question, user_scopes)</code> → retrieved-text inspection → <code>generate_grounded_answer()</code> → output moderation → citations and response.</p>
+</section>
+
+<section class="page">
+  <h2>Detailed breakdown 3: ingestion, persistence, and connected services</h2>
+  <div class="grid">
+    <div class="card"><h3>Document ingestion</h3><p><code>backend/app/api/v1/knowledge_documents.py:ingest_knowledge_document()</code> is the upload entry. It checks <code>knowledge:manage</code>, file size/type, duplicate content, and ingestion configuration.</p><p>Format handlers in <code>pdf_ingestion.py</code>, <code>office_ingestion.py</code>, and <code>text_ingestion.py</code> extract sections and links. Security preflight and extracted-text scanning run before indexing. <code>ingestion.py</code> converts corpus text into chunks with access scope and source metadata.</p><p>On success the repository stores document metadata and chunks; chunk embeddings support vector retrieval. Original upload bytes are not retained.</p></div>
+    <div class="card"><h3>MongoDB Atlas</h3><p><code>backend/app/storage/mongodb_knowledge.py</code> stores document and chunk records in separate collections, enforces uniqueness by content hash, and creates supporting indexes.</p><p><code>backend/app/knowledge/mongodb_index.py</code> handles vector indexing and retrieval. Each chunk carries scope metadata so search can filter results server-side.</p><p>Runtime configuration supplies connection URI, database, collection names, vector index, embedding provider, and ingestion enablement.</p></div>
+    <div class="card"><h3>Jira Cloud</h3><p>The Jira UI calls dedicated routes under <code>backend/app/api/v1/jira.py</code>; <code>integrations/jira_cloud.py</code> talks to Jira REST API using backend-only credentials.</p><p>Reads require <code>jira:read</code>. Writes require <code>jira:approve</code> and explicit confirmation. Jira is a separate feature lane, not an action performed by chat.</p></div>
+    <div class="card"><h3>Threat analysis and alerts</h3><p><code>backend/app/api/v1/threat_scans.py</code> exposes authorized scans. <code>threat_detection/</code> inspects submitted references or text with local rules; it does not execute submitted files or fetch scanned URLs.</p><p>Findings may create redacted alerts. Security analysts can review them; optional n8n notifications are separate from automated remediation.</p></div>
+  </div>
+  <h3>Governance and observability</h3><p><code>backend/app/storage/audit.py</code> persists audit events. Chat audit metadata captures route, outcome, and source count rather than question or answer text. Request IDs and metrics are added in <code>main.py</code>; audit routes require authorization.</p>
+  <h3>Configuration and external components</h3><table><thead><tr><th>Component</th><th>Used for</th><th>Configured in this project</th></tr></thead><tbody>
+  <tr><td>Keycloak</td><td>OIDC login and signed identity claims</td><td><code>docker-compose.yml</code>, <code>infrastructure/keycloak/knowledgeops-realm.json</code></td></tr>
+  <tr><td>MongoDB Atlas</td><td>Knowledge documents, chunks, vector search</td><td><code>MONGODB_*</code> and vector settings</td></tr>
+  <tr><td>Ollama / Groq / Mistral</td><td>Text embeddings and/or answer generation</td><td><code>RAG_*</code>, provider and model settings</td></tr>
+  <tr><td>Jira Cloud / optional n8n</td><td>Separate ticket workflows and event notification</td><td>Backend-only credentials and webhook settings</td></tr>
+  </tbody></table>
+  <p class="small">Repository architecture docs describe the active application as local and single-process. Configuration determines which optional services are enabled; credentials must stay out of frontend files and source control.</p>
+</section>
+
+<section class="page">
+  <h2>Swimlane process workflow: question to cited answer</h2>
+  <p>Read each row left to right for the process sequence; each row identifies the team or system accountable for that work.</p>
+  <table class="swim"><thead><tr><th>Swimlane / owner</th><th>1. Start</th><th>2. Authenticate &amp; authorize</th><th>3. Inspect &amp; route</th><th>4. Retrieve &amp; answer</th><th>5. Return &amp; govern</th></tr></thead><tbody>
+  <tr><th>User</th><td>Signs in; enters a question.</td><td>Completes Keycloak login.</td><td>Receives clarification or proceeds.</td><td>Waits for evidence-based result.</td><td>Reviews answer and source citations.</td></tr>
+  <tr><th>Frontend team<br/>React/Vite</th><td><span class="step">App.tsx / ChatPanel</span></td><td><span class="step">oidc.ts callback</span><br/><span class="step">http.ts adds bearer</span></td><td><span class="step">chat.ts POST request</span></td><td>Displays busy state; waits on API response.</td><td><span class="step">Render answer + citations</span></td></tr>
+  <tr><th>Identity &amp; security<br/>Keycloak / backend auth</th><td>—</td><td><span class="step">Keycloak issues token</span><br/><span class="step">auth.py validates claims</span><br/><span class="step">permissions.py checks capability/scope</span></td><td><span class="step">guardrails.py input check</span></td><td><span class="step">Scope-filtered access</span><br/><span class="step">Inspect retrieved text + output</span></td><td>Rejects unauthorized/unsafe result or permits response.</td></tr>
+  <tr><th>Backend team<br/>FastAPI / orchestration</th><td><span class="step">POST /api/v1/chat</span></td><td><span class="step">chat.py requires chat:ask</span></td><td><span class="step">routing.py classifies intent</span><br/><span class="step">service.py selects route</span></td><td><span class="step">Search → generate → cite</span></td><td><span class="step">ChatResponse</span><br/><span class="step">AuditLog metadata</span></td></tr>
+  <tr><th>Knowledge &amp; AI team<br/>Atlas / model provider</th><td>—</td><td>—</td><td>—</td><td><span class="step">MongoAtlasKnowledgeIndex.search()</span><br/><span class="arrowline">→</span><span class="step">Hybrid ranking</span><br/><span class="arrowline">→</span><span class="step">generate_grounded_answer()</span></td><td>Returns evidence-backed text and source metadata; abstains with no evidence.</td></tr>
+  <tr><th>Governance team<br/>Audit / policy</th><td>Define approved identity groups, scopes, and sources.</td><td>Maintain group-to-capability mapping.</td><td>Review moderation decisions and denials.</td><td>Set retention and AI-provider policy.</td><td>Use audit trail and citations for review; user makes decisions.</td></tr>
+  </tbody></table>
+  <div class="note"><b>End state:</b> the user sees an answer with source references, a safe abstention, a clarification, or an access-denied response. Each request is stateless; chat text is not stored as conversation history. Jira writes and threat-response workflows follow separate UI/API flows with their own permissions and confirmations.</div>
+  <p class="small"><b>Presentation close:</b> “The UI gathers the request, identity establishes who may ask and what they may see, the backend routes and checks it, retrieval supplies permitted evidence, the AI drafts a grounded answer, and governance controls access and traceability.”</p>
+</section>
+</body>
+</html>

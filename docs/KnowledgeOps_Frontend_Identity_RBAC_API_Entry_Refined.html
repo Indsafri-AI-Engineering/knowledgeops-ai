@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>KnowledgeOps AI | Frontend, Identity, RBAC & API Entry</title>
+<style>
+@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#172b3d;font:10.2pt/1.35 "Segoe UI",Arial,sans-serif}.page{height:190mm;page-break-after:always;overflow:hidden;position:relative;padding:0 1mm}.page:last-child{page-break-after:auto}h1{font-size:24pt;color:#1a405c;margin:0 0 2mm}h2{font-size:18pt;color:#1a405c;margin:0 0 3mm}h3{font-size:12pt;color:#137f78;margin:2mm 0 1mm}p{margin:1.2mm 0}.eyebrow{color:#079b89;font-weight:700;letter-spacing:.5pt;font-size:10pt}.sub{font-size:12pt;color:#4c657c}.scope{margin:3mm 0 4mm;background:#eaf1f7;border:1px solid #cedbe7;padding:2mm 3mm;color:#183a56;font-size:9pt}.section{font-size:11pt;font-weight:700;color:#137f78;margin:2mm 0}.flow{width:100%;height:132mm;display:block}.callout{border-left:4px solid #12a58d;background:#eef8f6;padding:2.5mm 3mm;margin:2mm 0}.warn{border-left-color:#b85c68;background:#fcf1f2}.cols{display:grid;grid-template-columns:1fr 1fr;gap:6mm}.card{border:1px solid #d0dae4;border-radius:2mm;padding:3mm 4mm;margin:2mm 0;background:#fff}.card h3{margin-top:0}.code{white-space:pre-wrap;background:#f1f5f8;border-left:3px solid #347fe8;padding:2.5mm 3mm;font:8.8pt/1.28 Consolas,monospace;color:#183a56}.tag{font-size:8.5pt;color:#506a7f}.step{display:inline-block;border-radius:2mm;background:#e9f2f8;border:1px solid #c9d8e5;padding:2mm 2.4mm;margin:1mm;font-weight:600;color:#1a405c}.lane{height:24mm;border-top:1px solid #cfdae4;display:grid;grid-template-columns:39mm 1fr;align-items:center}.lane strong{font-size:10pt;color:#30465a}.node{display:inline-block;vertical-align:middle;background:#347fe8;color:white;border-radius:2mm;padding:2mm 2.5mm;margin:1.2mm;font-size:8.4pt;text-align:center}.node.purple{background:#7252a5}.node.green{background:#2aa889}.node.red{background:#b85c68}.node.teal{background:#279db5}.node.dark{background:#173e5b}.arrow{color:#758ba0;font-weight:700;font-size:13pt;margin:0 .5mm}.footer{position:absolute;bottom:0;left:1mm;right:1mm;border-top:1px solid #dae2e9;padding-top:1mm;color:#728498;font-size:8pt;display:flex;justify-content:space-between}
+</style></head><body>
+<section class="page">
+<div class="eyebrow">KNOWLEDGEOPS AI &nbsp;|&nbsp; WHOLE-APPLICATION WORKFLOW</div>
+<h1>End-to-End System Workflow</h1><div class="sub">One entry point, trusted access controls, feature-specific services, and a governed result</div>
+<div class="scope"><b>SCOPE</b> &nbsp; Authentication · Knowledge chat · Knowledge management · Jira · Threat analysis · Security alerts · System status · Audit</div>
+<svg class="flow" viewBox="0 0 1180 600" role="img" aria-label="Whole KnowledgeOps application workflow from user entry through identity, API, feature branches, response, and audit">
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0v6l8-3z" fill="#68839a"/></marker><marker id="g" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0v6l8-3z" fill="#22a486"/></marker></defs>
+<text x="10" y="28" font-size="18" font-weight="700" fill="#1a405c">KnowledgeOps AI · Whole Application</text>
+<text x="10" y="50" font-size="11" fill="#536b80">Arrows show the common request path, then branch to the selected feature. Identity, capability and scope checks precede protected work.</text>
+<g font-family="Segoe UI,Arial" text-anchor="middle">
+<g><rect x="8" y="72" width="155" height="90" rx="9" fill="#fff" stroke="#5f7e97" stroke-width="2"/><text x="85" y="99" font-size="12" font-weight="bold" fill="#1a405c">1 · User</text><text x="85" y="122" font-size="11" fill="#334b60">Open app / choose</text><text x="85" y="143" font-size="10" fill="#536b80">question or feature</text></g>
+<g><rect x="192" y="72" width="155" height="90" rx="9" fill="#eaf4fb" stroke="#347fe8" stroke-width="2"/><text x="269" y="99" font-size="12" font-weight="bold" fill="#1a405c">2 · React frontend</text><text x="269" y="122" font-size="11" fill="#334b60">App.tsx + feature UI</text><text x="269" y="143" font-size="10" fill="#536b80">OIDC token + API call</text></g>
+<g><rect x="376" y="72" width="155" height="90" rx="9" fill="#f1ecf8" stroke="#7252a5" stroke-width="2"/><text x="453" y="99" font-size="12" font-weight="bold" fill="#1a405c">3 · Keycloak OIDC</text><text x="453" y="122" font-size="11" fill="#334b60">Authenticate user</text><text x="453" y="143" font-size="10" fill="#536b80">Issue signed token</text></g>
+<g><rect x="560" y="72" width="155" height="90" rx="9" fill="#e9f5f1" stroke="#22a486" stroke-width="2"/><text x="637" y="99" font-size="12" font-weight="bold" fill="#1a405c">4 · FastAPI</text><text x="637" y="122" font-size="11" fill="#334b60">main.py → API router</text><text x="637" y="143" font-size="10" fill="#536b80">Receive bearer request</text></g>
+<g><rect x="744" y="72" width="175" height="90" rx="9" fill="#faeef0" stroke="#b85b68" stroke-width="2"/><text x="831" y="99" font-size="12" font-weight="bold" fill="#1a405c">5 · Security / RBAC</text><text x="831" y="122" font-size="11" fill="#334b60">Verify JWT + identity</text><text x="831" y="143" font-size="10" fill="#536b80">Check capability / scope</text></g>
+<g><rect x="948" y="72" width="216" height="90" rx="9" fill="#e9f5f1" stroke="#22a486" stroke-width="2"/><text x="1056" y="99" font-size="12" font-weight="bold" fill="#1a405c">6 · API route / orchestration</text><text x="1056" y="122" font-size="11" fill="#334b60">Select authorized feature path</text><text x="1056" y="143" font-size="10" fill="#536b80">Unsupported actions stop here</text></g>
+<path d="M164 117H186M348 117H370M532 117H554M716 117H738M920 117H942" fill="none" stroke="#68839a" stroke-width="2" marker-end="url(#a)"/>
+<path d="M269 68V57H453V68" fill="none" stroke="#7252a5" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a)"/><text x="361" y="55" font-size="9" fill="#7252a5">OIDC redirect / callback</text>
+</g>
+<text x="10" y="205" font-size="14" font-weight="700" fill="#1a405c">7–11 · Execute the selected feature workflow</text>
+<path d="M1056 163V224H118M118 224H1062" fill="none" stroke="#68839a" stroke-width="1.6"/>
+<g fill="none" stroke="#68839a" stroke-width="1.6" marker-end="url(#a)"><path d="M118 224V252"/><path d="M354 224V252"/><path d="M590 224V252"/><path d="M826 224V252"/><path d="M1062 224V252"/></g>
+<g font-family="Segoe UI,Arial">
+<g><rect x="8" y="254" width="220" height="126" rx="9" fill="#eaf4fb" stroke="#347fe8" stroke-width="2"/><text x="20" y="278" font-size="12" font-weight="bold" fill="#1a405c">7 · Knowledge chat / analysis</text><text x="20" y="302" font-size="10.5" fill="#334b60">Scope-filtered Atlas + keyword search</text><text x="20" y="323" font-size="10.5" fill="#334b60">Grounded LLM answer + citations</text><text x="20" y="352" font-size="9.5" fill="#536b80">MongoDB Atlas · Ollama / configured LLM</text></g>
+<g><rect x="244" y="254" width="220" height="126" rx="9" fill="#e9f5f1" stroke="#22a486" stroke-width="2"/><text x="256" y="278" font-size="12" font-weight="bold" fill="#1a405c">8 · Knowledge management</text><text x="256" y="302" font-size="10.5" fill="#334b60">Validate → inspect → extract → chunk</text><text x="256" y="323" font-size="10.5" fill="#334b60">Store scoped docs and searchable chunks</text><text x="256" y="352" font-size="9.5" fill="#536b80">Document APIs · MongoDB Atlas</text></g>
+<g><rect x="480" y="254" width="220" height="126" rx="9" fill="#f1ecf8" stroke="#7252a5" stroke-width="2"/><text x="492" y="278" font-size="12" font-weight="bold" fill="#1a405c">9 · Jira workspace</text><text x="492" y="302" font-size="10.5" fill="#334b60">Read issues or prepare approved writes</text><text x="492" y="323" font-size="10.5" fill="#334b60">Capability + explicit confirmation</text><text x="492" y="352" font-size="9.5" fill="#536b80">Dedicated Jira API · Jira Cloud</text></g>
+<g><rect x="716" y="254" width="220" height="126" rx="9" fill="#fcf1f2" stroke="#b85b68" stroke-width="2"/><text x="728" y="278" font-size="12" font-weight="bold" fill="#1a405c">10 · Threat scans / alerts</text><text x="728" y="302" font-size="10.5" fill="#334b60">Local scan → redacted alert queue</text><text x="728" y="323" font-size="10.5" fill="#334b60">Analyst review; optional n8n dispatch</text><text x="728" y="352" font-size="9.5" fill="#536b80">Threat API · security alerts · n8n</text></g>
+<g><rect x="952" y="254" width="220" height="126" rx="9" fill="#edf3f8" stroke="#5f7e97" stroke-width="2"/><text x="964" y="278" font-size="12" font-weight="bold" fill="#1a405c">11 · Status / audit</text><text x="964" y="302" font-size="10.5" fill="#334b60">Health, service status, observability</text><text x="964" y="323" font-size="10.5" fill="#334b60">Record outcome and safe metadata</text><text x="964" y="352" font-size="9.5" fill="#536b80">Status APIs · AuditLog</text></g>
+</g>
+<path d="M118 381V410H1062M354 381V410M590 381V410M826 381V410M1062 381V410" fill="none" stroke="#9aabba" stroke-width="1.4" stroke-dasharray="4 4"/>
+<g><rect x="400" y="431" width="260" height="78" rx="9" fill="#e8f6f2" stroke="#22a486" stroke-width="2"/><text x="530" y="460" font-size="13" font-weight="bold" fill="#137f78" text-anchor="middle">12 · Build feature response</text><text x="530" y="485" font-size="10.5" fill="#334b60" text-anchor="middle">Answer, citations, status or action result</text></g>
+<g><rect x="765" y="431" width="190" height="78" rx="9" fill="#eaf4fb" stroke="#347fe8" stroke-width="2"/><text x="860" y="460" font-size="13" font-weight="bold" fill="#1a405c" text-anchor="middle">13 · React renders</text><text x="860" y="485" font-size="10.5" fill="#334b60" text-anchor="middle">Show result to the user</text></g>
+<g><rect x="1000" y="431" width="172" height="78" rx="9" fill="#173e5b" stroke="#173e5b" stroke-width="2"/><text x="1086" y="460" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">14 · Audit</text><text x="1086" y="485" font-size="10.5" fill="#fff" text-anchor="middle">Outcome metadata</text></g>
+<path d="M530 411V425M660 470H759M660 447H990" fill="none" stroke="#68839a" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="12" y="552" font-size="10.5" fill="#405c72">Branches are feature-specific: chat does not execute Jira or threat-response actions. Protected operations require their own capabilities and confirmations.</text>
+</svg>
+<div class="footer"><span>PAGE 1 · WHOLE-SYSTEM WORKFLOW</span><span>Entry → identity → authorization → feature execution → response &amp; audit</span></div>
+</section>
+
+<section class="page">
+<div class="eyebrow">KNOWLEDGEOPS AI &nbsp;|&nbsp; CODE 1 OF 4</div><h2><code>frontend/src/app/App.tsx</code> — Application Shell &amp; User State</h2>
+<p>This file coordinates the React workspace after the browser mounts the application. It connects the OIDC callback to the authenticated user profile and then chooses the sign-in or workspace view.</p>
+<div class="cols"><div><h3>Core initialization excerpt</h3><div class="code">useEffect(() =&gt; {
+  let active = true;
+  const initialize = async () =&gt; {
+    if (oidcMode) {
+      await completeOidcCallback();
+      if (!(await getOidcUser())) return;
+      const currentUser = await getCurrentUser();
+      if (active) setUser(currentUser);
+    }
+  };
+  initialize().finally(() =&gt; {
+    if (active) setLoading(false);
+  });
+  return () =&gt; { active = false; };
+}, []);</div></div><div><h3>What the file does</h3><div class="card"><b>State</b> — Stores user, activeView, loading, busy, and error state.</div><div class="card"><b>initialize()</b> — Processes OIDC callback, checks for a valid OIDC user, calls <code>getCurrentUser()</code>, and stores the backend profile.</div><div class="card"><b>Login / logout</b> — <code>handleLogin()</code> starts OIDC; <code>handleLogout()</code> clears workspace session state and starts provider logout.</div><div class="card"><b>Render</b> — Shows loading, sign-in, or the workspace. Capability checks control navigation visibility.</div></div></div>
+<div class="callout"><b>Handoff:</b> App.tsx calls <code>oidc.ts</code> for callback and sign-in state, then <code>auth.ts</code> for <code>GET /api/v1/me</code>. The returned backend user drives the workspace UI. Backend authorization remains authoritative.</div>
+<div class="footer"><span>PAGE 2 · CODE 1 OF 4</span><span>Application shell → OIDC client → authenticated profile</span></div></section>
+
+<section class="page">
+<div class="eyebrow">KNOWLEDGEOPS AI &nbsp;|&nbsp; CODE 2 OF 4</div><h2><code>frontend/src/api/oidc.ts</code> — Keycloak OIDC Client</h2>
+<p>This file manages the browser-side sign-in redirect, callback, stored OIDC user, and access-token retrieval through <code>oidc-client-ts</code>.</p>
+<div class="cols"><div><h3>Client configuration</h3><div class="code">manager = new UserManager({
+  authority,
+  client_id: clientId,
+  redirect_uri: `${window.location.origin}/`,
+  response_type: "code",
+  scope: "openid profile email",
+  automaticSilentRenew: true,
+  userStore: new WebStorageStateStore({
+    store: window.sessionStorage,
+  }),
+});</div><div class="callout">The browser holds OIDC state in session storage. The API still validates each bearer token itself.</div></div><div><h3>Key functions and hand-off</h3><div class="card"><b>userManager()</b> — Creates and caches the OIDC manager from <code>VITE_OIDC_AUTHORITY</code> and <code>VITE_OIDC_CLIENT_ID</code>.</div><div class="card"><b>startOidcLogin()</b> — Redirects the browser to Keycloak.</div><div class="card"><b>completeOidcCallback()</b> — Processes returned code/state or provider error and removes callback query parameters.</div><div class="card"><b>getOidcUser()</b> — Returns a stored user only if it exists and is not expired.</div><div class="card"><b>getOidcAccessToken()</b> — Returns the current access token. <code>http.ts</code> adds it as <code>Authorization: Bearer …</code>; <code>auth.ts</code> calls <code>/api/v1/me</code>.</div></div></div>
+<div class="footer"><span>PAGE 3 · CODE 2 OF 4</span><span>OIDC settings → Keycloak redirect → callback → frontend token</span></div></section>
+
+<section class="page">
+<div class="eyebrow">KNOWLEDGEOPS AI &nbsp;|&nbsp; CODE 3 OF 4</div><h2><code>backend/app/core/auth.py</code> — Bearer Verification &amp; User Resolution</h2>
+<p>This file is the backend identity boundary. A browser-side signed-in state is not accepted as proof; the backend validates the token and constructs its own user context.</p>
+<div class="cols"><div><h3>Token verification excerpt</h3><div class="code">signing_key = _jwks_client(jwks_url)
+    .get_signing_key_from_jwt(token)
+claims = jwt.decode(
+    token,
+    signing_key.key,
+    algorithms=["RS256"],
+    audience=audience,
+    issuer=issuer,
+    options={"require": ["exp", "iat", "sub", "iss", "aud"]},
+)</div><h3>Trust checks</h3><p>Uses Keycloak's JWKS public key, then verifies signature, accepted algorithm, issuer, audience, expiry, and required claims.</p></div><div><h3>Key functions</h3><div class="card"><b>get_current_user()</b> — FastAPI dependency. Missing/invalid bearer token is rejected.</div><div class="card"><b>authenticate_oidc_token()</b> — Loads issuer/audience/JWKS config, validates token, reads subject and group claim.</div><div class="card"><b>_jwks_client()</b> — Caches the PyJWT JWKS client for public signing keys.</div><div class="card"><b>_group_capability_mapping()</b> — Reads configured group-to-capability policy and checks capabilities against the allowlist.</div><div class="card"><b>DemoUser result</b> — Supplies user ID, display name, role, and server-derived capabilities to protected endpoints.</div></div></div>
+<div class="callout"><b>Input → output:</b> <code>Authorization: Bearer &lt;JWT&gt;</code> plus backend OIDC settings → trusted <code>DemoUser</code>. Invalid/missing token returns 401; misconfigured OIDC returns 503. Group membership alone is not permission; capabilities come from backend configuration.</div>
+<div class="footer"><span>PAGE 4 · CODE 3 OF 4</span><span>Untrusted bearer token → verified claims → server-derived identity</span></div></section>
+
+<section class="page">
+<div class="eyebrow">KNOWLEDGEOPS AI &nbsp;|&nbsp; CODE 4 OF 4</div><h2><code>backend/app/api/v1/chat.py</code> — Protected API Entry &amp; RBAC Gate</h2>
+<p>This file defines the chat endpoint. It receives the request, asks FastAPI for a verified user, and checks the capability before processing a question.</p>
+<div class="cols"><div><h3>Endpoint excerpt</h3><div class="code">@router.post("/chat", response_model=ChatResponse)
+def chat(
+    payload: ChatRequest,
+    request: Request,
+    user: Annotated[DemoUser,
+        Depends(get_current_user)],
+    index: Annotated[KnowledgeIndex,
+        Depends(get_knowledge_index)],
+) -&gt; ChatResponse:
+    require_capability(user, "chat:ask", request)
+    input_decision = moderate_input(payload.question)
+    ...</div><p class="tag">Route registration: <code>main.py → api/v1/router.py → chat.py</code>.</p></div><div><h3>Key actions</h3><div class="card"><b>Route + input</b> — <code>POST /api/v1/chat</code>; ChatRequest validates question length and retrieval mode.</div><div class="card"><b>Identity + RBAC</b> — <code>Depends(get_current_user)</code> resolves DemoUser; <code>require_capability()</code> from permissions.py requires <code>chat:ask</code> or denies with 403.</div><div class="card"><b>Processing hand-off</b> — Input moderation runs before <code>route_question()</code> and <code>orchestrate_request()</code>.</div><div class="card"><b>Response + audit</b> — Output moderation checks the answer; AuditLog records metadata; endpoint returns ChatResponse.</div></div></div>
+<div class="callout"><b>Input → output:</b> <code>POST /api/v1/chat</code> with JSON and bearer token → ChatResponse. Identity failure is 401; missing <code>chat:ask</code> is 403; only an authorized request continues to moderation and downstream work.</div>
+<div class="footer"><span>PAGE 5 · CODE 4 OF 4</span><span>Verified DemoUser → capability gate → chat processing</span></div></section>
+
+<section class="page">
+<div class="eyebrow">KNOWLEDGEOPS AI &nbsp;|&nbsp; FINAL PAGE</div><h2>Swimlane — Frontend → Identity → RBAC → API Entry</h2>
+<p>This swimlane follows the same four source files explained on pages 2–5. Other files appear only where they connect the hand-off.</p>
+<div class="scope"><b>START</b> User opens the app &nbsp;·&nbsp; <b>END</b> Protected chat request is allowed into processing or rejected at the identity/capability gate</div>
+<div class="lane"><strong>USER</strong><div><span class="node" style="background:#f39b45">1 · Open workspace</span><span class="arrow">→</span><span class="node" style="background:#f39b45">6 · Ask a question</span></div></div>
+<div class="lane"><strong>REACT FRONTEND</strong><div><span class="node">2 · App.tsx starts OIDC</span><span class="arrow">→</span><span class="node">4 · oidc.ts completes callback</span><span class="arrow">→</span><span class="node">5 · auth.ts / http.ts GET /me</span><span class="arrow">→</span><span class="node">7 · chat.ts / http.ts POST /chat</span></div></div>
+<div class="lane"><strong>OIDC / IDENTITY</strong><div><span class="node purple">3 · Keycloak login + return</span><span class="arrow">→</span><span class="node purple">5 · auth.py validates /me token</span><span class="arrow">→</span><span class="node purple">9 · auth.py verifies chat token + maps groups</span></div></div>
+<div class="lane"><strong>FASTAPI API</strong><div><span class="node green">main.py mounts app</span><span class="arrow">→</span><span class="node green">router.py registers /api/v1</span><span class="arrow">→</span><span class="node green">5 · GET /me</span><span class="arrow">→</span><span class="node green">8 · POST /chat</span></div></div>
+<div class="lane"><strong>RBAC / CHAT</strong><div><span class="node red">10 · require_capability(chat:ask)</span><span class="arrow">→</span><span class="node teal">ALLOW · moderate → route → orchestrate</span><span class="arrow">or</span><span class="node red">DENY · 401 / 403</span></div></div>
+<div class="callout"><b>How to read it:</b> follow the numbered steps and arrows across lanes. OIDC sign-in establishes the browser session; each API request carries a bearer token; backend token validation establishes identity; the capability check authorizes the specific operation.</div>
+<div class="callout warn"><b>Key distinction:</b> hiding a frontend button is only a user-interface choice. The protected API's server-side identity and RBAC checks enforce access.</div>
+<div class="footer"><span>PAGE 6 · SWIMLANE</span><span>App.tsx → oidc.ts → auth.py → chat.py + permissions.py</span></div></section>
+</body></html>
